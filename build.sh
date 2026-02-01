@@ -1,7 +1,7 @@
 #!/bin/bash
 
 echo "======================================"
-echo "  Building Futu Quant Trading System"
+echo "  Building Quant Trading System"
 echo "======================================"
 echo ""
 
@@ -56,17 +56,13 @@ while [[ $# -gt 0 ]]; do
             echo "  --help                     Show this help message"
             echo ""
             echo "Examples:"
-            echo "  $0                                              # Build with Futu in Release mode"
-            echo "  $0 --debug                                      # Build with Futu in Debug mode"
-            echo "  $0 --ftapi-home /path/to/FTAPI4CPP --debug      # Build with specific FTAPI path"
-            echo "  $0 --enable-ibkr --debug                        # Build with Futu and IBKR in Debug mode"
-            echo "  $0 --disable-futu --enable-ibkr                 # Build with IBKR in Release mode"
+            echo "  $0                                         # Build (Release)"
+            echo "  $0 --debug                                 # Build (Debug)"
+            echo "  $0 --ftapi-home /path/to/FTAPI --debug     # Build with specific FTAPI path (Debug)"
+            echo "  $0 --enable-ibkr --debug                   # Build with Futu and IBKR (Debug)"
             echo ""
             echo "Environment Variables:"
             echo "  FTAPI_HOME                 Alternative way to set FTAPI4CPP home directory"
-            echo ""
-            echo "Examples with environment variables:"
-            echo "  export FTAPI_HOME=/path/to/FTAPI4CPP && $0"
             exit 0
             ;;
         *)
@@ -85,6 +81,14 @@ echo ""
 echo "Build Configuration:"
 echo "  Build Type: $BUILD_TYPE"
 
+if [ "$ENABLE_FUTU" == "ON" ]; then
+    echo ""
+    echo "FTAPI Configuration:"
+    echo "  Mode: x86_64 prebuilt libraries"
+    echo "  Library: FTAPI4CPP/Bin (Rosetta 2 on Apple Silicon)"
+fi
+echo ""
+
 # 创建构建目录
 if [ ! -d "build" ]; then
     mkdir build
@@ -95,11 +99,12 @@ cd build
 # 构建 CMake 命令
 CMAKE_CMD="cmake .. \
     -DCMAKE_BUILD_TYPE=$BUILD_TYPE \
+    -DCMAKE_OSX_ARCHITECTURES=x86_64 \
     -DENABLE_FUTU=$ENABLE_FUTU \
     -DENABLE_IBKR=$ENABLE_IBKR \
     -DENABLE_BINANCE=$ENABLE_BINANCE"
 
-# 如果指定了 FTAPI_HOME，添加到 CMake 命令
+# 添加 FTAPI_HOME 到 CMake 命令
 if [ -n "$FTAPI_HOME_ARG" ]; then
     CMAKE_CMD="$CMAKE_CMD -DFTAPI_HOME=$FTAPI_HOME_ARG"
 fi

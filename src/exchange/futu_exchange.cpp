@@ -1,15 +1,22 @@
 #include "exchange/futu_exchange.h"
-#include "trading/order_executor.h"
-#include "data/data_subscriber.h"
-#include "event/event_engine.h"
-#include "common/object.h"
 #include "utils/logger.h"
 #include <sstream>
 #include <chrono>
 #include <ctime>
 
+#ifdef ENABLE_FUTU
+#include "futu_spi.h"
+using namespace Futu;
+#endif
+
 FutuExchange::FutuExchange(const FutuConfig& config)
     : config_(config), connected_(false) {
+    #ifdef ENABLE_FUTU
+    qot_api_ = nullptr;
+    trd_api_ = nullptr;
+    spi_ = nullptr;
+    #endif
+    
     LOG_INFO("Futu Exchange initialized");
 }
 
@@ -29,18 +36,102 @@ bool FutuExchange::connect() {
     
     LOG_INFO("Connecting to Futu API...");
     
-    // TODO: 集成真实的Futu API连接
-    // 示例代码：
-    // FTAPI_Conn_InitInfo conn_info;
-    // conn_info.host = config_.host.c_str();
-    // conn_info.port = config_.port;
-    // int ret = FTAPI_Conn_Init(&conn_info);
-    // if (ret != 0) {
-    //     LOG_ERROR("Failed to connect to Futu API");
-    //     return false;
-    // }
+    #ifdef ENABLE_FUTU
+    try {
+        // 初始化 FTAPI
+        FTAPI::Init();
+        
+        // 创建 SPI 回调处理
+        spi_ = new FutuSpi(this);
+        
+        // 创建行情API
+        qot_api_ = FTAPI::CreateQotApi();
+        if (qot_api_ == nullptr) {
+            LOG_ERROR("Failed to create Qot API");
+            return false;
+        }
+        
+        // 设置客户端信息
+        qot_api_->SetClientInfo("QUANT_TRADING_SYSTEM", 1);
+        
+        // 注册回调
+        qot_api_->RegisterConnSpi(spi_);
+        qot_api_->RegisterQotSpi(spi_);
+        
+        // 初始化连接
+        bool ret = qot_api_->InitConnect(config_.host.c_str(), config_.port, false);
+        if (!ret) {
+            LOG_ERROR("Failed to initialize Qot API connection");
+            FTAPI::ReleaseQotApi(qot_api_);
+            qot_api_ = nullptr;
+            delete spi_;
+            spi_ = nullptr;
+            return false;
+        }
+        
+        // 等待连接成功
+        std::this_thread::sleep_for(std::chrono::seconds(2));
+        
+        // 创建交易API
+        trd_api_ = FTAPI::CreateTrdApi();
+        if (trd_api_ == nullptr) {
+            LOG_ERROR("Failed to create Trd API");
+            qot_api_->Close();
+            FTAPI::ReleaseQotApi(qot_api_);
+            qot_api_ = nullptr;
+            delete spi_;
+            spi_ = nullptr;
+            return false;
+        }
+        
+        // 设置客户端信息
+        trd_api_->SetClientInfo("QUANT_TRADING_SYSTEM", 1);
+        
+        // 注册回调
+        trd_api_->RegisterConnSpi(spi_);
+        trd_api_->RegisterTrdSpi(spi_);
+        
+        // 初始化连接
+        ret = trd_api_->InitConnect(config_.host.c_str(), config_.port, false);
+        if (!ret) {
+            LOG_ERROR("Failed to initialize Trd API connection");
+            qot_api_->Close();
+            FTAPI::ReleaseQotApi(qot_api_);
+            FTAPI::ReleaseTrdApi(trd_api_);
+            qot_api_ = nullptr;
+            trd_api_ = nullptr;
+            delete spi_;
+            spi_ = nullptr;
+            return false;
+        }
+        
+        // 等待连接成功
+        std::this_thread::sleep_for(std::chrono::seconds(2));
+        
+        LOG_INFO("FTAPI connection initialized");
+        
+        // 如果是实盘交易，需要解锁
+        if (!config_.is_simulation && !config_.unlock_password.empty()) {
+            if (!unlockTrade()) {
+                LOG_ERROR("Failed to unlock trade");
+                disconnect();
+                return false;
+            }
+        }
+        
+        // 获取账户列表
+        if (!getAccountList()) {
+            LOG_WARNING("Failed to get account list");
+        }
+        
+    } catch (const std::exception& e) {
+        LOG_ERROR(std::string("Exception during FTAPI connection: ") + e.what());
+        return false;
+    }
+    #else
+    LOG_WARNING("FTAPI is not enabled, running in simulation mode");
+    #endif
     
-    // 模拟连接成功
     connected_ = true;
     
     std::stringstream ss;
@@ -49,15 +140,6 @@ bool FutuExchange::connect() {
         ss << " (Simulation Mode)";
     }
     LOG_INFO(ss.str());
-    
-    // 如果是实盘，需要解锁交易
-    if (!config_.is_simulation) {
-        if (!unlockTrade()) {
-            LOG_ERROR("Failed to unlock trade");
-            connected_ = false;
-            return false;
-        }
-    }
     
     return true;
 }
@@ -69,8 +151,30 @@ bool FutuExchange::disconnect() {
         return true;
     }
     
-    // TODO: 断开Futu API连接
-    // FTAPI_Conn_Close();
+    #ifdef ENABLE_FUTU
+    if (qot_api_ != nullptr) {
+        qot_api_->UnregisterQotSpi();
+        qot_api_->UnregisterConnSpi();
+        qot_api_->Close();
+        FTAPI::ReleaseQotApi(qot_api_);
+        qot_api_ = nullptr;
+    }
+    
+    if (trd_api_ != nullptr) {
+        trd_api_->UnregisterTrdSpi();
+        trd_api_->UnregisterConnSpi();
+        trd_api_->Close();
+        FTAPI::ReleaseTrdApi(trd_api_);
+        trd_api_ = nullptr;
+    }
+    
+    if (spi_ != nullptr) {
+        delete spi_;
+        spi_ = nullptr;
+    }
+    
+    FTAPI::UnInit();
+    #endif
     
     connected_ = false;
     LOG_INFO("Disconnected from Futu API");
@@ -83,6 +187,177 @@ bool FutuExchange::isConnected() const {
     return connected_;
 }
 
+// ========== 内部辅助方法 ==========
+
+bool FutuExchange::unlockTrade() {
+    if (config_.unlock_password.empty()) {
+        LOG_ERROR("Unlock password is empty for real trading");
+        return false;
+    }
+    
+    #ifdef ENABLE_FUTU
+    if (trd_api_ == nullptr || spi_ == nullptr) {
+        LOG_ERROR("Trd API not initialized");
+        return false;
+    }
+    
+    try {
+        Trd_UnlockTrade::Request req;
+        auto* c2s = req.mutable_c2s();
+        c2s->set_unlock(true);
+        c2s->set_pwdmd5(config_.unlock_password);
+        c2s->set_securityfirm(Trd_Common::SecurityFirm_FutuSecurities);
+        
+        u32_t serial_no = trd_api_->UnlockTrade(req);
+        if (serial_no == 0) {
+            LOG_ERROR("Failed to send unlock trade request");
+            return false;
+        }
+        
+        // 等待响应
+        if (!spi_->WaitForReply(serial_no, 5000)) {
+            LOG_ERROR("Unlock trade timeout");
+            return false;
+        }
+        
+        LOG_INFO("Trade unlocked successfully");
+        return true;
+        
+    } catch (const std::exception& e) {
+        LOG_ERROR(std::string("Exception during unlock trade: ") + e.what());
+        return false;
+    }
+    #else
+    LOG_WARNING("FTAPI is not enabled");
+    return false;
+    #endif
+}
+
+bool FutuExchange::getAccountList() {
+    #ifdef ENABLE_FUTU
+    if (trd_api_ == nullptr || spi_ == nullptr) {
+        LOG_ERROR("Trd API not initialized");
+        return false;
+    }
+    
+    try {
+        Trd_GetAccList::Request req;
+        auto* c2s = req.mutable_c2s();
+        c2s->set_userid(0);  // 0 表示当前连接对应的用户
+        
+        u32_t serial_no = trd_api_->GetAccList(req);
+        if (serial_no == 0) {
+            LOG_ERROR("Failed to send get account list request");
+            return false;
+        }
+        
+        // 等待响应
+        if (!spi_->WaitForReply(serial_no, 5000)) {
+            LOG_ERROR("Get account list timeout");
+            return false;
+        }
+        
+        // 从响应中获取账户列表
+        {
+            std::lock_guard<std::mutex> lock(spi_->mutex_);
+            auto it = spi_->acc_list_responses_.find(serial_no);
+            if (it != spi_->acc_list_responses_.end()) {
+                const auto& rsp = it->second;
+                if (rsp.rettype() >= 0 && rsp.has_s2c()) {
+                    const auto& s2c = rsp.s2c();
+                    int acc_count = s2c.acclist_size();
+                    
+                    LOG_INFO(std::string("Found ") + std::to_string(acc_count) + " accounts");
+                    
+                    for (int i = 0; i < acc_count; ++i) {
+                        const auto& acc = s2c.acclist(i);
+                        account_ids_.push_back(acc.accid());
+                        
+                        std::stringstream ss;
+                        ss << "Account " << i << ": ID=" << acc.accid() 
+                           << ", TrdEnv=" << acc.trdenv()
+                           << ", TrdMarket=" << acc.trdmarketauthlist_size();
+                        LOG_INFO(ss.str());
+                    }
+                }
+                spi_->acc_list_responses_.erase(it);
+            }
+        }
+        
+        return true;
+        
+    } catch (const std::exception& e) {
+        LOG_ERROR(std::string("Exception during get account list: ") + e.what());
+        return false;
+    }
+    #else
+    LOG_WARNING("FTAPI is not enabled");
+    return false;
+    #endif
+}
+
+Qot_Common::Security FutuExchange::convertToSecurity(const std::string& symbol) {
+    Qot_Common::Security security;
+    
+    #ifdef ENABLE_FUTU
+    // 解析 symbol，格式可能是 "00700" 或 "HK.00700"
+    std::string market_str = config_.market;
+    std::string code = symbol;
+    
+    size_t dot_pos = symbol.find('.');
+    if (dot_pos != std::string::npos) {
+        market_str = symbol.substr(0, dot_pos);
+        code = symbol.substr(dot_pos + 1);
+    }
+    
+    // 转换市场类型
+    int32_t market_type = Qot_Common::QotMarket_HK_Security;
+    if (market_str == "HK") {
+        market_type = Qot_Common::QotMarket_HK_Security;
+    } else if (market_str == "US") {
+        market_type = Qot_Common::QotMarket_US_Security;
+    } else if (market_str == "SH") {
+        market_type = Qot_Common::QotMarket_CNSH_Security;
+    } else if (market_str == "SZ") {
+        market_type = Qot_Common::QotMarket_CNSZ_Security;
+    }
+    
+    security.set_market(market_type);
+    security.set_code(code);
+    #endif
+    
+    return security;
+}
+
+int32_t FutuExchange::convertKLineType(const std::string& kline_type) {
+    #ifdef ENABLE_FUTU
+    if (kline_type == "1m" || kline_type == "1min") {
+        return Qot_Common::KLType_1Min;
+    } else if (kline_type == "3m" || kline_type == "3min") {
+        return Qot_Common::KLType_3Min;
+    } else if (kline_type == "5m" || kline_type == "5min") {
+        return Qot_Common::KLType_5Min;
+    } else if (kline_type == "15m" || kline_type == "15min") {
+        return Qot_Common::KLType_15Min;
+    } else if (kline_type == "30m" || kline_type == "30min") {
+        return Qot_Common::KLType_30Min;
+    } else if (kline_type == "60m" || kline_type == "60min" || kline_type == "1h") {
+        return Qot_Common::KLType_60Min;
+    } else if (kline_type == "1d" || kline_type == "day") {
+        return Qot_Common::KLType_Day;
+    } else if (kline_type == "1w" || kline_type == "week") {
+        return Qot_Common::KLType_Week;
+    } else if (kline_type == "1mon" || kline_type == "month") {
+        return Qot_Common::KLType_Month;
+    }
+    
+    // 默认返回5分钟
+    return Qot_Common::KLType_5Min;
+    #else
+    return 0;
+    #endif
+}
+
 // ========== 账户相关 ==========
 
 AccountInfo FutuExchange::getAccountInfo() {
@@ -91,20 +366,70 @@ AccountInfo FutuExchange::getAccountInfo() {
         return AccountInfo();
     }
     
-    // TODO: 调用Futu API获取账户信息
-    // 示例代码：
-    // FTAPI_Trd_GetAccList acc_list;
-    // FTAPI_Trd_Get_Acc_List(&acc_list);
-    
     AccountInfo info;
-    info.account_id = "DEMO_ACCOUNT";
-    info.total_assets = 1000000.0;
-    info.cash = 500000.0;
-    info.market_value = 500000.0;
-    info.available_funds = 500000.0;
-    info.frozen_funds = 0.0;
-    info.currency = "HKD";
     
+    #ifdef ENABLE_FUTU
+    if (trd_api_ == nullptr || spi_ == nullptr) {
+        LOG_ERROR("Trd API not initialized");
+        return info;
+    }
+    
+    if (account_ids_.empty()) {
+        LOG_ERROR("No account available");
+        return info;
+    }
+    
+    try {
+        // 使用第一个账户
+        uint64_t acc_id = account_ids_[0];
+        
+        Trd_GetFunds::Request req;
+        auto* c2s = req.mutable_c2s();
+        auto* header = c2s->mutable_header();
+        header->set_trdenv(config_.is_simulation ? Trd_Common::TrdEnv_Simulate : Trd_Common::TrdEnv_Real);
+        header->set_accid(acc_id);
+        header->set_trdmarket(Trd_Common::TrdMarket_HK);
+        
+        u32_t serial_no = trd_api_->GetFunds(req);
+        if (serial_no == 0) {
+            LOG_ERROR("Failed to send get funds request");
+            return info;
+        }
+        
+        // 等待响应
+        if (!spi_->WaitForReply(serial_no, 5000)) {
+            LOG_ERROR("Get funds timeout");
+            return info;
+        }
+        
+        // 从响应中提取资金信息
+        {
+            std::lock_guard<std::mutex> lock(spi_->mutex_);
+            auto it = spi_->funds_responses_.find(serial_no);
+            if (it != spi_->funds_responses_.end()) {
+                const auto& rsp = it->second;
+                if (rsp.rettype() >= 0 && rsp.has_s2c()) {
+                    const auto& s2c = rsp.s2c();
+                    const auto& funds = s2c.funds();
+                    
+                    info.account_id = std::to_string(acc_id);
+                    info.total_assets = funds.totalassets();
+                    info.cash = funds.cash();
+                    info.market_value = funds.marketval();
+                    info.available_funds = funds.availablefunds();
+                    info.frozen_funds = funds.frozencash();
+                    info.currency = funds.currency();
+                }
+                spi_->funds_responses_.erase(it);
+            }
+        }
+        
+    } catch (const std::exception& e) {
+        LOG_ERROR(std::string("Exception during get account info: ") + e.what());
+    }
+    #endif
+    
+    LOG_INFO("Get account info");
     return info;
 }
 
@@ -114,16 +439,79 @@ std::vector<ExchangePosition> FutuExchange::getPositions() {
         return {};
     }
     
-    // TODO: 调用Futu API获取持仓
-    // 示例代码：
-    // FTAPI_Trd_GetPositionList pos_list;
-    // FTAPI_Trd_Get_Position_List(&pos_list);
-    
     std::vector<ExchangePosition> positions;
     
-    // 模拟返回空持仓
-    LOG_INFO("Queried positions from Futu API");
+    #ifdef ENABLE_FUTU
+    if (trd_api_ == nullptr || spi_ == nullptr) {
+        LOG_ERROR("Trd API not initialized");
+        return positions;
+    }
     
+    if (account_ids_.empty()) {
+        LOG_ERROR("No account available");
+        return positions;
+    }
+    
+    try {
+        // 使用第一个账户
+        uint64_t acc_id = account_ids_[0];
+        
+        Trd_GetPositionList::Request req;
+        auto* c2s = req.mutable_c2s();
+        auto* header = c2s->mutable_header();
+        header->set_trdenv(config_.is_simulation ? Trd_Common::TrdEnv_Simulate : Trd_Common::TrdEnv_Real);
+        header->set_accid(acc_id);
+        header->set_trdmarket(Trd_Common::TrdMarket_HK);
+        
+        u32_t serial_no = trd_api_->GetPositionList(req);
+        if (serial_no == 0) {
+            LOG_ERROR("Failed to send get position list request");
+            return positions;
+        }
+        
+        // 等待响应
+        if (!spi_->WaitForReply(serial_no, 5000)) {
+            LOG_ERROR("Get position list timeout");
+            return positions;
+        }
+        
+        // 从响应中提取持仓信息
+        {
+            std::lock_guard<std::mutex> lock(spi_->mutex_);
+            auto it = spi_->position_responses_.find(serial_no);
+            if (it != spi_->position_responses_.end()) {
+                const auto& rsp = it->second;
+                if (rsp.rettype() >= 0 && rsp.has_s2c()) {
+                    const auto& s2c = rsp.s2c();
+                    int pos_count = s2c.positionlist_size();
+                    
+                    for (int i = 0; i < pos_count; ++i) {
+                        const auto& pos = s2c.positionlist(i);
+                        
+                        ExchangePosition position;
+                        position.symbol = pos.code();
+                        position.stock_name = pos.name();
+                        position.quantity = static_cast<int>(pos.qty());
+                        position.avg_price = pos.costprice();
+                        position.current_price = pos.price();
+                        position.market_value = pos.price() * pos.qty();  // 计算市值
+                        position.cost_price = pos.costprice() * pos.qty();
+                        position.profit_loss = pos.has_plval() ? pos.plval() : 0.0;
+                        position.profit_loss_ratio = pos.has_plratio() ? pos.plratio() : 0.0;
+                        
+                        positions.push_back(position);
+                    }
+                }
+                spi_->position_responses_.erase(it);
+            }
+        }
+        
+    } catch (const std::exception& e) {
+        LOG_ERROR(std::string("Exception during get positions: ") + e.what());
+    }
+    #endif
+    
+    LOG_INFO(std::string("Queried ") + std::to_string(positions.size()) + " positions");
     return positions;
 }
 
@@ -153,33 +541,93 @@ std::string FutuExchange::placeOrder(
     }
     LOG_INFO(ss.str());
     
-    // TODO: 调用Futu API下单
-    // 示例代码：
-    // FTAPI_Trd_PlaceOrder order;
-    // order.code = convertStockCode(symbol).c_str();
-    // order.trd_side = (side == "BUY") ? TrdSide_Buy : TrdSide_Sell;
-    // order.order_type = (order_type == "MARKET") ? OrderType_Market : OrderType_Limit;
-    // order.qty = quantity;
-    // order.price = price;
-    // 
-    // FTAPI_Trd_PlaceOrderRsp rsp;
-    // int ret = FTAPI_Trd_Place_Order(&order, &rsp);
-    // if (ret != 0) {
-    //     LOG_ERROR("Failed to place order");
-    //     return "";
-    // }
-    // return std::to_string(rsp.order_id);
+    std::string order_id = "";
     
-    // 生成模拟订单ID
-    static int order_counter = 1;
-    std::stringstream order_id;
-    order_id << "FUTU_" << order_counter++;
+    #ifdef ENABLE_FUTU
+    if (trd_api_ == nullptr || spi_ == nullptr) {
+        LOG_ERROR("Trd API not initialized");
+        return order_id;
+    }
     
-    ss.str("");
-    ss << "Order placed successfully: " << order_id.str();
-    LOG_INFO(ss.str());
+    if (account_ids_.empty()) {
+        LOG_ERROR("No account available");
+        return order_id;
+    }
     
-    return order_id.str();
+    try {
+        // 使用第一个账户
+        uint64_t acc_id = account_ids_[0];
+        
+        Trd_PlaceOrder::Request req;
+        auto* c2s = req.mutable_c2s();
+        
+        // 设置交易头
+        auto* header = c2s->mutable_header();
+        header->set_trdenv(config_.is_simulation ? Trd_Common::TrdEnv_Simulate : Trd_Common::TrdEnv_Real);
+        header->set_accid(acc_id);
+        header->set_trdmarket(Trd_Common::TrdMarket_HK);
+        
+        // 设置交易方向
+        if (side == "BUY") {
+            c2s->set_trdside(Trd_Common::TrdSide_Buy);
+        } else {
+            c2s->set_trdside(Trd_Common::TrdSide_Sell);
+        }
+        
+        // 设置订单类型
+        if (order_type == "MARKET") {
+            c2s->set_ordertype(Trd_Common::OrderType_Market);
+        } else {
+            c2s->set_ordertype(Trd_Common::OrderType_Normal);
+            c2s->set_price(price);
+        }
+        
+        // 解析symbol获取股票代码
+        std::string code = symbol;
+        size_t dot_pos = symbol.find('.');
+        if (dot_pos != std::string::npos) {
+            code = symbol.substr(dot_pos + 1);
+        }
+        
+        c2s->set_code(code);
+        c2s->set_qty(quantity);
+        c2s->set_secmarket(Trd_Common::TrdSecMarket_HK);
+        c2s->set_adjustprice(true);  // 自动调整价格到合法范围
+        
+        u32_t serial_no = trd_api_->PlaceOrder(req);
+        if (serial_no == 0) {
+            LOG_ERROR("Failed to send place order request");
+            return order_id;
+        }
+        
+        // 等待响应
+        if (!spi_->WaitForReply(serial_no, 5000)) {
+            LOG_ERROR("Place order timeout");
+            return order_id;
+        }
+        
+        // 从响应中提取订单ID
+        {
+            std::lock_guard<std::mutex> lock(spi_->mutex_);
+            auto it = spi_->place_order_responses_.find(serial_no);
+            if (it != spi_->place_order_responses_.end()) {
+                const auto& rsp = it->second;
+                if (rsp.rettype() >= 0 && rsp.has_s2c()) {
+                    order_id = std::to_string(rsp.s2c().orderid());
+                    LOG_INFO(std::string("Order placed successfully: ") + order_id);
+                } else {
+                    LOG_ERROR(std::string("Place order failed: ") + rsp.retmsg());
+                }
+                spi_->place_order_responses_.erase(it);
+            }
+        }
+        
+    } catch (const std::exception& e) {
+        LOG_ERROR(std::string("Exception during place order: ") + e.what());
+    }
+    #endif
+    
+    return order_id;
 }
 
 bool FutuExchange::cancelOrder(const std::string& order_id) {
@@ -188,17 +636,59 @@ bool FutuExchange::cancelOrder(const std::string& order_id) {
         return false;
     }
     
-    // TODO: 调用Futu API撤单
-    // FTAPI_Trd_ModifyOrder modify;
-    // modify.order_id = std::stoll(order_id);
-    // modify.modify_op = ModifyOp_Cancel;
-    // int ret = FTAPI_Trd_Modify_Order(&modify, nullptr);
+    #ifdef ENABLE_FUTU
+    if (trd_api_ == nullptr || spi_ == nullptr) {
+        LOG_ERROR("Trd API not initialized");
+        return false;
+    }
     
-    std::stringstream ss;
-    ss << "Order cancelled: " << order_id;
-    LOG_INFO(ss.str());
+    if (account_ids_.empty()) {
+        LOG_ERROR("No account available");
+        return false;
+    }
     
+    try {
+        uint64_t acc_id = account_ids_[0];
+        uint64_t order_id_num = std::stoull(order_id);
+        
+        Trd_ModifyOrder::Request req;
+        auto* c2s = req.mutable_c2s();
+        
+        // 设置交易头
+        auto* header = c2s->mutable_header();
+        header->set_trdenv(config_.is_simulation ? Trd_Common::TrdEnv_Simulate : Trd_Common::TrdEnv_Real);
+        header->set_accid(acc_id);
+        header->set_trdmarket(Trd_Common::TrdMarket_HK);
+        
+        // 设置订单ID
+        c2s->set_orderid(order_id_num);
+        
+        // 设置修改操作为撤单
+        c2s->set_modifyorderop(Trd_Common::ModifyOrderOp_Cancel);
+        
+        u32_t serial_no = trd_api_->ModifyOrder(req);
+        if (serial_no == 0) {
+            LOG_ERROR("Failed to send cancel order request");
+            return false;
+        }
+        
+        // 等待响应
+        if (!spi_->WaitForReply(serial_no, 5000)) {
+            LOG_ERROR("Cancel order timeout");
+            return false;
+        }
+        
+        LOG_INFO(std::string("Order cancelled: ") + order_id);
+        return true;
+        
+    } catch (const std::exception& e) {
+        LOG_ERROR(std::string("Exception during cancel order: ") + e.what());
+        return false;
+    }
+    #else
+    LOG_INFO(std::string("Order cancelled (simulation): ") + order_id);
     return true;
+    #endif
 }
 
 bool FutuExchange::modifyOrder(const std::string& order_id, int new_quantity, double new_price) {
@@ -207,28 +697,90 @@ bool FutuExchange::modifyOrder(const std::string& order_id, int new_quantity, do
         return false;
     }
     
-    // TODO: 调用Futu API改单
+    #ifdef ENABLE_FUTU
+    if (trd_api_ == nullptr || spi_ == nullptr) {
+        LOG_ERROR("Trd API not initialized");
+        return false;
+    }
     
+    if (account_ids_.empty()) {
+        LOG_ERROR("No account available");
+        return false;
+    }
+    
+    try {
+        uint64_t acc_id = account_ids_[0];
+        uint64_t order_id_num = std::stoull(order_id);
+        
+        Trd_ModifyOrder::Request req;
+        auto* c2s = req.mutable_c2s();
+        
+        // 设置交易头
+        auto* header = c2s->mutable_header();
+        header->set_trdenv(config_.is_simulation ? Trd_Common::TrdEnv_Simulate : Trd_Common::TrdEnv_Real);
+        header->set_accid(acc_id);
+        header->set_trdmarket(Trd_Common::TrdMarket_HK);
+        
+        // 设置订单ID
+        c2s->set_orderid(order_id_num);
+        
+        // 设置修改操作
+        c2s->set_modifyorderop(Trd_Common::ModifyOrderOp_Normal);
+        
+        // 设置新的价格和数量
+        c2s->set_price(new_price);
+        c2s->set_qty(new_quantity);
+        c2s->set_adjustprice(true);
+        
+        u32_t serial_no = trd_api_->ModifyOrder(req);
+        if (serial_no == 0) {
+            LOG_ERROR("Failed to send modify order request");
+            return false;
+        }
+        
+        // 等待响应
+        if (!spi_->WaitForReply(serial_no, 5000)) {
+            LOG_ERROR("Modify order timeout");
+            return false;
+        }
+        
+        std::stringstream ss;
+        ss << "Order modified: " << order_id << " new_qty=" << new_quantity << " new_price=" << new_price;
+        LOG_INFO(ss.str());
+        return true;
+        
+    } catch (const std::exception& e) {
+        LOG_ERROR(std::string("Exception during modify order: ") + e.what());
+        return false;
+    }
+    #else
     std::stringstream ss;
-    ss << "Order modified: " << order_id << " new_qty=" << new_quantity << " new_price=" << new_price;
+    ss << "Order modified (simulation): " << order_id << " new_qty=" << new_quantity << " new_price=" << new_price;
     LOG_INFO(ss.str());
-    
     return true;
+    #endif
 }
 
 OrderData FutuExchange::getOrderStatus(const std::string& order_id) {
-    // TODO: 调用Futu API查询订单状态
-    
     OrderData order;
     order.order_id = order_id;
     order.status = OrderStatus::SUBMITTED;
+    
+    #ifdef ENABLE_FUTU
+    // TODO: 实现查询订单状态
+    // 可以使用 GetOrderList 接口查询当日订单
+    #endif
     
     return order;
 }
 
 std::vector<OrderData> FutuExchange::getOrderHistory(int days) {
-    // TODO: 调用Futu API获取历史订单
     (void)days;
+    
+    #ifdef ENABLE_FUTU
+    // TODO: 实现查询历史订单
+    // 使用 GetHistoryOrderList 接口
+    #endif
     
     return {};
 }
@@ -241,17 +793,55 @@ bool FutuExchange::subscribeKLine(const std::string& symbol, const std::string& 
         return false;
     }
     
-    // TODO: 调用Futu API订阅K线
-    // FTAPI_Qot_Sub sub;
-    // sub.security.code = convertStockCode(symbol).c_str();
-    // sub.sub_type_list = {SubType_KL_5Min};  // 根据kline_type转换
-    // int ret = FTAPI_Qot_Sub(&sub);
+    #ifdef ENABLE_FUTU
+    if (qot_api_ == nullptr || spi_ == nullptr) {
+        LOG_ERROR("Qot API not initialized");
+        return false;
+    }
     
+    try {
+        Qot_Sub::Request req;
+        auto* c2s = req.mutable_c2s();
+        
+        // 添加要订阅的股票
+        auto* security = c2s->add_securitylist();
+        *security = convertToSecurity(symbol);
+        
+        // 添加订阅类型 - K线
+        int32_t kl_type = convertKLineType(kline_type);
+        c2s->add_subtypelist(kl_type);
+        
+        // 设置为订阅
+        c2s->set_issuborunsub(true);
+        c2s->set_isregorunregpush(true);
+        
+        u32_t serial_no = qot_api_->Sub(req);
+        if (serial_no == 0) {
+            LOG_ERROR("Failed to send subscribe KLine request");
+            return false;
+        }
+        
+        // 等待响应
+        if (!spi_->WaitForReply(serial_no, 5000)) {
+            LOG_ERROR("Subscribe KLine timeout");
+            return false;
+        }
+        
+        std::stringstream ss;
+        ss << "Subscribed KLine: " << symbol << " " << kline_type;
+        LOG_INFO(ss.str());
+        return true;
+        
+    } catch (const std::exception& e) {
+        LOG_ERROR(std::string("Exception during subscribe KLine: ") + e.what());
+        return false;
+    }
+    #else
     std::stringstream ss;
-    ss << "Subscribed KLine: " << symbol << " " << kline_type;
+    ss << "Subscribed KLine (simulation): " << symbol << " " << kline_type;
     LOG_INFO(ss.str());
-    
     return true;
+    #endif
 }
 
 bool FutuExchange::unsubscribeKLine(const std::string& symbol) {
@@ -259,13 +849,43 @@ bool FutuExchange::unsubscribeKLine(const std::string& symbol) {
         return false;
     }
     
-    // TODO: 调用Futu API取消订阅
+    #ifdef ENABLE_FUTU
+    if (qot_api_ == nullptr) {
+        return false;
+    }
     
+    try {
+        Qot_Sub::Request req;
+        auto* c2s = req.mutable_c2s();
+        
+        // 添加要取消订阅的股票
+        auto* security = c2s->add_securitylist();
+        *security = convertToSecurity(symbol);
+        
+        // 设置为取消订阅
+        c2s->set_issuborunsub(false);
+        
+        u32_t serial_no = qot_api_->Sub(req);
+        if (serial_no == 0) {
+            LOG_ERROR("Failed to send unsubscribe KLine request");
+            return false;
+        }
+        
+        std::stringstream ss;
+        ss << "Unsubscribed KLine: " << symbol;
+        LOG_INFO(ss.str());
+        return true;
+        
+    } catch (const std::exception& e) {
+        LOG_ERROR(std::string("Exception during unsubscribe KLine: ") + e.what());
+        return false;
+    }
+    #else
     std::stringstream ss;
-    ss << "Unsubscribed KLine: " << symbol;
+    ss << "Unsubscribed KLine (simulation): " << symbol;
     LOG_INFO(ss.str());
-    
     return true;
+    #endif
 }
 
 bool FutuExchange::subscribeTick(const std::string& symbol) {
@@ -274,13 +894,55 @@ bool FutuExchange::subscribeTick(const std::string& symbol) {
         return false;
     }
     
-    // TODO: 调用Futu API订阅逐笔
+    #ifdef ENABLE_FUTU
+    if (qot_api_ == nullptr || spi_ == nullptr) {
+        LOG_ERROR("Qot API not initialized");
+        return false;
+    }
     
+    try {
+        Qot_Sub::Request req;
+        auto* c2s = req.mutable_c2s();
+        
+        // 添加要订阅的股票
+        auto* security = c2s->add_securitylist();
+        *security = convertToSecurity(symbol);
+        
+        // 添加订阅类型 - 基础报价(相当于Tick)
+        c2s->add_subtypelist(Qot_Common::SubType_Basic);
+        c2s->add_subtypelist(Qot_Common::SubType_Ticker);
+        
+        // 设置为订阅
+        c2s->set_issuborunsub(true);
+        c2s->set_isregorunregpush(true);
+        
+        u32_t serial_no = qot_api_->Sub(req);
+        if (serial_no == 0) {
+            LOG_ERROR("Failed to send subscribe Tick request");
+            return false;
+        }
+        
+        // 等待响应
+        if (!spi_->WaitForReply(serial_no, 5000)) {
+            LOG_ERROR("Subscribe Tick timeout");
+            return false;
+        }
+        
+        std::stringstream ss;
+        ss << "Subscribed Tick: " << symbol;
+        LOG_INFO(ss.str());
+        return true;
+        
+    } catch (const std::exception& e) {
+        LOG_ERROR(std::string("Exception during subscribe Tick: ") + e.what());
+        return false;
+    }
+    #else
     std::stringstream ss;
-    ss << "Subscribed Tick: " << symbol;
+    ss << "Subscribed Tick (simulation): " << symbol;
     LOG_INFO(ss.str());
-    
     return true;
+    #endif
 }
 
 bool FutuExchange::unsubscribeTick(const std::string& symbol) {
@@ -290,8 +952,7 @@ bool FutuExchange::unsubscribeTick(const std::string& symbol) {
         return false;
     }
     
-    // TODO: 调用Futu API取消订阅
-    
+    // TODO: 实现取消Tick订阅
     return true;
 }
 
@@ -305,32 +966,81 @@ std::vector<KlineData> FutuExchange::getHistoryKLine(
         return {};
     }
     
-    // TODO: 调用Futu API获取历史K线
-    // FTAPI_Qot_RequestHistoryKL req;
-    // req.security.code = convertStockCode(symbol).c_str();
-    // req.kl_type = KLType_5Min;  // 根据kline_type转换
-    // req.req_num = count;
-    // 
-    // FTAPI_Qot_RequestHistoryKLRsp rsp;
-    // FTAPI_Qot_Request_History_KL(&req, &rsp);
-    
-    
-    // 生成模拟的K线数据
     std::vector<KlineData> klines;
-    for (int i = 0; i < count; ++i) {
-        KlineData kline;
-        kline.symbol = symbol;
-        kline.exchange = "Futu";
-        kline.datetime = "2024-01-01 09:30:00";
-        kline.open_price = 100.0 + i;
-        kline.high_price = 102.0 + i;
-        kline.low_price = 99.0 + i;
-        kline.close_price = 101.0 + i;
-        kline.volume = 1000000;
-        kline.turnover = 100000000.0;
-        klines.push_back(kline);
+    
+    #ifdef ENABLE_FUTU
+    if (qot_api_ == nullptr || spi_ == nullptr) {
+        LOG_ERROR("Qot API not initialized");
+        return klines;
     }
     
+    try {
+        Qot_RequestHistoryKL::Request req;
+        auto* c2s = req.mutable_c2s();
+        
+        // 设置股票
+        auto* security = c2s->mutable_security();
+        *security = convertToSecurity(symbol);
+        
+        // 设置K线类型
+        c2s->set_kltype(convertKLineType(kline_type));
+        
+        // 设置请求数量
+        c2s->set_maxackklnum(count);
+        
+        // 设置复权类型
+        c2s->set_rehabtype(Qot_Common::RehabType_None);
+        
+        u32_t serial_no = qot_api_->RequestHistoryKL(req);
+        if (serial_no == 0) {
+            LOG_ERROR("Failed to send get history KLine request");
+            return klines;
+        }
+        
+        // 等待响应
+        if (!spi_->WaitForReply(serial_no, 10000)) {
+            LOG_ERROR("Get history KLine timeout");
+            return klines;
+        }
+        
+        // 从响应中提取K线数据
+        {
+            std::lock_guard<std::mutex> lock(spi_->mutex_);
+            auto it = spi_->history_kline_responses_.find(serial_no);
+            if (it != spi_->history_kline_responses_.end()) {
+                const auto& rsp = it->second;
+                if (rsp.rettype() >= 0 && rsp.has_s2c()) {
+                    const auto& s2c = rsp.s2c();
+                    int kl_count = s2c.kllist_size();
+                    
+                    for (int i = 0; i < kl_count; ++i) {
+                        const auto& kl = s2c.kllist(i);
+                        
+                        KlineData kline;
+                        kline.symbol = symbol;
+                        kline.exchange = "Futu";
+                        kline.datetime = kl.time();
+                        kline.interval = kline_type;
+                        kline.open_price = kl.openprice();
+                        kline.high_price = kl.highprice();
+                        kline.low_price = kl.lowprice();
+                        kline.close_price = kl.closeprice();
+                        kline.volume = kl.volume();
+                        kline.turnover = kl.turnover();
+                        
+                        klines.push_back(kline);
+                    }
+                }
+                spi_->history_kline_responses_.erase(it);
+            }
+        }
+        
+    } catch (const std::exception& e) {
+        LOG_ERROR(std::string("Exception during get history KLine: ") + e.what());
+    }
+    #endif
+    
+    LOG_INFO(std::string("Got ") + std::to_string(klines.size()) + " history KLines");
     return klines;
 }
 
@@ -340,26 +1050,69 @@ Snapshot FutuExchange::getSnapshot(const std::string& symbol) {
         return Snapshot();
     }
     
-    // TODO: 调用Futu API获取快照
-    // FTAPI_Qot_GetBasicQot req;
-    // req.security.code = convertStockCode(symbol).c_str();
-    // FTAPI_Qot_GetBasicQotRsp rsp;
-    // FTAPI_Qot_Get_Basic_Qot(&req, &rsp);
-    
     Snapshot snapshot;
-    snapshot.symbol = symbol;
-    snapshot.exchange = "Futu";
-    snapshot.timestamp = std::chrono::system_clock::now().time_since_epoch().count() / 1000000;
-    snapshot.last_price = 100.0;
-    snapshot.open_price = 99.0;
-    snapshot.high_price = 102.0;
-    snapshot.low_price = 98.0;
-    snapshot.pre_close = 100.0;
-    snapshot.volume = 1000000;
-    snapshot.turnover = 100000000.0;
-    snapshot.turnover_rate = 2.5;
-    snapshot.price_change = 0.0;
-    snapshot.price_change_abs = 0.0;
+    
+    #ifdef ENABLE_FUTU
+    if (qot_api_ == nullptr || spi_ == nullptr) {
+        LOG_ERROR("Qot API not initialized");
+        return snapshot;
+    }
+    
+    try {
+        Qot_GetSecuritySnapshot::Request req;
+        auto* c2s = req.mutable_c2s();
+        
+        // 添加要查询的股票
+        auto* security = c2s->add_securitylist();
+        *security = convertToSecurity(symbol);
+        
+        u32_t serial_no = qot_api_->GetSecuritySnapshot(req);
+        if (serial_no == 0) {
+            LOG_ERROR("Failed to send get snapshot request");
+            return snapshot;
+        }
+        
+        // 等待响应
+        if (!spi_->WaitForReply(serial_no, 5000)) {
+            LOG_ERROR("Get snapshot timeout");
+            return snapshot;
+        }
+        
+        // 从响应中提取快照数据
+        {
+            std::lock_guard<std::mutex> lock(spi_->mutex_);
+            auto it = spi_->snapshot_responses_.find(serial_no);
+            if (it != spi_->snapshot_responses_.end()) {
+                const auto& rsp = it->second;
+                if (rsp.rettype() >= 0 && rsp.has_s2c()) {
+                    const auto& s2c = rsp.s2c();
+                    if (s2c.snapshotlist_size() > 0) {
+                        const auto& snap = s2c.snapshotlist(0);
+                        const auto& basic = snap.basic();
+                        
+                        snapshot.symbol = symbol;
+                        snapshot.exchange = "Futu";
+                        snapshot.timestamp = std::chrono::system_clock::now().time_since_epoch().count() / 1000000;
+                        snapshot.last_price = basic.curprice();
+                        snapshot.open_price = basic.openprice();
+                        snapshot.high_price = basic.highprice();
+                        snapshot.low_price = basic.lowprice();
+                        snapshot.pre_close = basic.lastcloseprice();
+                        snapshot.volume = basic.volume();
+                        snapshot.turnover = basic.turnover();
+                        snapshot.turnover_rate = basic.turnoverrate();
+                        snapshot.price_change = basic.has_pricespread() ? basic.pricespread() : 0.0;
+                        snapshot.price_change_abs = 0.0;  // 富途API没有提供绝对变化值
+                    }
+                }
+                spi_->snapshot_responses_.erase(it);
+            }
+        }
+        
+    } catch (const std::exception& e) {
+        LOG_ERROR(std::string("Exception during get snapshot: ") + e.what());
+    }
+    #endif
     
     return snapshot;
 }
@@ -367,22 +1120,32 @@ Snapshot FutuExchange::getSnapshot(const std::string& symbol) {
 // ========== 市场扫描相关 ==========
 
 std::vector<std::string> FutuExchange::getMarketStockList(const std::string& market) {
-    (void)market;
-
     if (!connected_) {
         LOG_ERROR("Not connected to exchange");
         return {};
     }
     
-    // TODO: 调用Futu API获取股票列表
-    // FTAPI_Qot_GetStaticInfo req;
-    // req.market = market;
-    // FTAPI_Qot_GetStaticInfoRsp rsp;
-    // FTAPI_Qot_Get_Static_Info(&req, &rsp);
-    
     std::vector<std::string> stocks;
     
-    // 模拟返回一些港股代码
+    #ifdef ENABLE_FUTU
+    if (qot_api_ == nullptr || spi_ == nullptr) {
+        LOG_ERROR("Qot API not initialized");
+        return stocks;
+    }
+    
+    try {
+        // 使用 GetPlateSecurity 接口获取板块下的股票
+        // 或者使用 GetStaticInfo 获取市场股票信息
+        
+        // 这里简化实现，返回一些常见股票
+        LOG_WARNING("getMarketStockList not fully implemented, returning sample stocks");
+        
+    } catch (const std::exception& e) {
+        LOG_ERROR(std::string("Exception during get market stock list: ") + e.what());
+    }
+    #endif
+    
+    // 返回一些示例股票代码
     stocks.push_back("00700");  // 腾讯
     stocks.push_back("09988");  // 阿里巴巴
     stocks.push_back("03690");  // 美团
@@ -400,130 +1163,78 @@ std::map<std::string, Snapshot> FutuExchange::getBatchSnapshots(
         return {};
     }
     
-    // TODO: 调用Futu API批量获取快照
-    
     std::map<std::string, Snapshot> snapshots;
     
-    for (const auto& code : stock_codes) {
-        snapshots[code] = getSnapshot(code);
+    #ifdef ENABLE_FUTU
+    if (qot_api_ == nullptr || spi_ == nullptr) {
+        LOG_ERROR("Qot API not initialized");
+        return snapshots;
     }
     
+    try {
+        Qot_GetSecuritySnapshot::Request req;
+        auto* c2s = req.mutable_c2s();
+        
+        // 添加要查询的所有股票
+        for (const auto& code : stock_codes) {
+            auto* security = c2s->add_securitylist();
+            *security = convertToSecurity(code);
+        }
+        
+        u32_t serial_no = qot_api_->GetSecuritySnapshot(req);
+        if (serial_no == 0) {
+            LOG_ERROR("Failed to send batch get snapshot request");
+            return snapshots;
+        }
+        
+        // 等待响应
+        if (!spi_->WaitForReply(serial_no, 10000)) {
+            LOG_ERROR("Batch get snapshot timeout");
+            return snapshots;
+        }
+        
+        // 从响应中提取快照数据
+        {
+            std::lock_guard<std::mutex> lock(spi_->mutex_);
+            auto it = spi_->snapshot_responses_.find(serial_no);
+            if (it != spi_->snapshot_responses_.end()) {
+                const auto& rsp = it->second;
+                if (rsp.rettype() >= 0 && rsp.has_s2c()) {
+                    const auto& s2c = rsp.s2c();
+                    int snap_count = s2c.snapshotlist_size();
+                    
+                    for (int i = 0; i < snap_count; ++i) {
+                        const auto& snap = s2c.snapshotlist(i);
+                        const auto& basic = snap.basic();
+                        const auto& sec = basic.security();
+                        
+                        Snapshot snapshot;
+                        snapshot.symbol = sec.code();
+                        snapshot.exchange = "Futu";
+                        snapshot.timestamp = std::chrono::system_clock::now().time_since_epoch().count() / 1000000;
+                        snapshot.last_price = basic.curprice();
+                        snapshot.open_price = basic.openprice();
+                        snapshot.high_price = basic.highprice();
+                        snapshot.low_price = basic.lowprice();
+                        snapshot.pre_close = basic.lastcloseprice();
+                        snapshot.volume = basic.volume();
+                        snapshot.turnover = basic.turnover();
+                        snapshot.turnover_rate = basic.turnoverrate();
+                        snapshot.price_change = basic.has_pricespread() ? basic.pricespread() : 0.0;
+                        snapshot.price_change_abs = 0.0;  // 富途API没有提供绝对变化值
+                        
+                        snapshots[sec.code()] = snapshot;
+                    }
+                }
+                spi_->snapshot_responses_.erase(it);
+            }
+        }
+        
+    } catch (const std::exception& e) {
+        LOG_ERROR(std::string("Exception during batch get snapshots: ") + e.what());
+    }
+    #endif
+    
+    LOG_INFO(std::string("Got ") + std::to_string(snapshots.size()) + " snapshots");
     return snapshots;
-}
-
-// ========== 事件发布方法 ==========
-
-void FutuExchange::publishTickEvent(const std::string& symbol, const void* futu_tick) {
-    // TODO: 将Futu原始Tick数据转换为统一格式
-    // 这里应该调用Futu API的数据结构转换
-    
-    TickData tick_data;
-    tick_data.symbol = symbol;
-    tick_data.exchange = "Futu";
-    tick_data.timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::system_clock::now().time_since_epoch()
-    ).count();
-    
-    // 从futu_tick中提取数据并填充tick_data
-    // tick_data.last_price = futu_tick->last_price;
-    // tick_data.volume = futu_tick->volume;
-    // ...
-    
-    // 发布事件到事件引擎
-    auto& event_engine = EventEngine::getInstance();
-    event_engine.publishEvent(EventType::EVENT_TICK, tick_data);
-}
-
-void FutuExchange::publishKLineEvent(const std::string& symbol, const void* futu_kline) {
-    // TODO: 将Futu原始K线数据转换为统一格式
-    
-    KlineData kline_data;
-    kline_data.symbol = symbol;
-    kline_data.exchange = "Futu";
-    kline_data.timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::system_clock::now().time_since_epoch()
-    ).count();
-    kline_data.interval = "5m";
-    
-    // 从futu_kline中提取数据
-    // kline_data.open_price = futu_kline->open;
-    // kline_data.high_price = futu_kline->high;
-    // ...
-    
-    // 发布事件
-    auto& event_engine = EventEngine::getInstance();
-    event_engine.publishEvent(EventType::EVENT_KLINE, kline_data);
-}
-
-void FutuExchange::publishOrderEvent(const OrderData& order) {
-    // 将Order转换为OrderData
-    OrderData order_data;
-    order_data.order_id = order.order_id;
-    order_data.symbol = order.symbol;
-    order_data.exchange = "Futu";
-    order_data.status = order.status;
-    // ... 填充其他字段
-    
-    // 发布事件
-    auto& event_engine = EventEngine::getInstance();
-    event_engine.publishEvent(EventType::EVENT_ORDER, order_data);
-}
-
-void FutuExchange::publishTradeEvent(const void* futu_trade) {
-    // TODO: 将Futu成交数据转换为统一格式
-    
-    TradeData trade_data;
-    trade_data.exchange = "Futu";
-    // 填充成交数据
-    
-    // 发布事件
-    auto& event_engine = EventEngine::getInstance();
-    event_engine.publishEvent(EventType::EVENT_TRADE_DEAL, trade_data);
-}
-
-// ========== 内部辅助方法 ==========
-
-bool FutuExchange::initFutuAPI() {
-    // TODO: 初始化Futu API
-    return true;
-}
-
-bool FutuExchange::unlockTrade() {
-    if (config_.unlock_password.empty()) {
-        LOG_ERROR("Unlock password is empty");
-        return false;
-    }
-    
-    // TODO: 调用Futu API解锁交易
-    // FTAPI_Trd_UnlockTrade unlock;
-    // unlock.pwd_md5 = md5(config_.unlock_password);
-    // int ret = FTAPI_Trd_Unlock_Trade(&unlock);
-    
-    LOG_INFO("Trade unlocked");
-    return true;
-}
-
-std::string FutuExchange::convertStockCode(const std::string& symbol) {
-    // Futu API 需要市场前缀，例如 "HK.00700"
-    std::string market = config_.market;
-    return market + "." + symbol;
-}
-
-OrderData FutuExchange::convertFutuOrder(const void* futu_order) {
-    // TODO: 将Futu API的订单结构转换为系统订单结构
-    OrderData order;
-    return order;
-}
-
-Snapshot FutuExchange::convertFutuSnapshot(const void* futu_snapshot) {
-    // TODO: 转换快照数据
-    Snapshot snapshot;
-    return snapshot;
-}
-
-ExchangePosition FutuExchange::convertFutuPosition(const void* futu_position) {
-    // TODO: 转换持仓数据
-    ExchangePosition position;
-    return position;
-
 }

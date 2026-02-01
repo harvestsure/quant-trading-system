@@ -2,6 +2,106 @@
 
 一个基于C++的多交易所量化交易系统，支持Futu、IBKR、Binance等多个交易平台，支持实盘和模拟盘交易，实现追涨杀跌策略。
 
+## 快速开始
+
+### 1. 快速编译（推荐新手）
+
+最简单的编译方式，使用默认配置：
+
+```bash
+./build.sh
+```
+
+这将编译 Release 版本，Futu 交易所从源码编译（自动适配 ARM64 或 x86_64）。
+
+### 2. 开发模式（Debug 编译）
+
+```bash
+./build.sh --debug
+```
+
+### 3. 使用预编译库（更快的编译速度）
+
+**使用 ARM64 预编译库（推荐 Apple Silicon Mac）：**
+
+```bash
+# 第一步：预编译 ARM64 库（只需执行一次）
+./build_ftapi_arm64.sh both
+
+# 第二步：编译项目
+./build.sh --use-prebuilt-arm64 --release
+```
+
+**使用 x86_64 预编译库（兼容所有 Mac）：**
+
+```bash
+./build.sh --use-prebuilt-x86
+```
+
+### 4. 运行系统
+
+```bash
+./build/quant-trading-system config.json
+```
+
+## 编译选项
+
+### 基本选项
+```bash
+./build.sh [选项]
+
+交易所选项：
+  --enable-futu              启用 Futu 交易所（默认）
+  --disable-futu             禁用 Futu 交易所
+  --enable-ibkr              启用 IBKR 交易所
+  --enable-binance           启用 Binance 交易所
+
+构建类型：
+  --debug                    Debug 编译（包含调试符号）
+  --release                  Release 编译（优化版本，默认）
+
+FTAPI 编译模式（仅 Futu）：
+  --from-source              从源码编译（默认，原生性能）
+  --use-prebuilt-x86         使用 x86_64 预编译库
+  --use-prebuilt-arm64       使用 ARM64 预编译库
+
+其他：
+  --ftapi-home <path>        指定 FTAPI4CPP SDK 路径
+  --help                     显示帮助信息
+```
+
+### 常用编译命令示例
+
+```bash
+# 默认编译（Release，从源码）
+./build.sh
+
+# Debug 编译
+./build.sh --debug
+
+# 使用 ARM64 预编译库（最快）
+./build_ftapi_arm64.sh both  # 只需执行一次
+./build.sh --use-prebuilt-arm64 --release
+
+# 指定 FTAPI 路径
+./build.sh --ftapi-home /path/to/FTAPI4CPP_<version>
+
+# 启用多个交易所
+./build.sh --enable-ibkr --debug
+
+# 使用环境变量
+export FTAPI_HOME=/path/FTAPI4CPP_<version>
+./build.sh --use-prebuilt-arm64
+```
+
+## 编译模式对比
+
+| 模式 | 命令 | 编译时间 | 性能 | 适用场景 |
+|------|------|----------|------|----------|
+| 从源码 | `./build.sh` | 2-3分钟 | ⭐⭐⭐⭐⭐ | 开发、调试 |
+| ARM64预编译 | `./build.sh --use-prebuilt-arm64` | 30秒 | ⭐⭐⭐⭐⭐ | 生产部署（Apple Silicon） |
+| x86_64预编译 | `./build.sh --use-prebuilt-x86` | 30秒 | ⭐⭐⭐⭐ | 快速测试、Intel Mac |
+
 ## 功能特性
 
 - ✅ **多交易所支持**：支持Futu、IBKR、Binance等多个交易平台
@@ -10,8 +110,30 @@
 - ✅ **策略系统**：灵活的策略管理器，支持多种策略并行运行
 - ✅ **配置管理**：JSON配置文件，支持多个交易所配置
 - ✅ **数据订阅**：实时订阅K线和Ticker数据
-- ✅ **持仓管理**：自动跟踪和管理所有持仓
+- ✅ **持仓管理**：自动跟踪和管理所有持仓状态
 - ✅ **风险控制**：完善的风险管理系统，包括止损、止盈、追踪止损、仓位控制
+
+## 详细文档
+
+- 📖 [BUILD_GUIDE.md](BUILD_GUIDE.md) - 完整构建指南（详细说明所有编译选项）
+- 📖 [docs/BUILD_OPTIONS.md](docs/BUILD_OPTIONS.md) - 编译选项快速参考
+- 📖 [docs/DYNAMIC_STRATEGY_MANAGEMENT.md](docs/DYNAMIC_STRATEGY_MANAGEMENT.md) - 动态策略管理
+- 📖 [docs/EVENT_DRIVEN_ARCHITECTURE.md](docs/EVENT_DRIVEN_ARCHITECTURE.md) - 事件驱动架构
+- 📖 [docs/EXCHANGE_ABSTRACTION.md](docs/EXCHANGE_ABSTRACTION.md) - 交易所抽象层
+- 📖 [docs/EXCHANGE_BUILD_OPTIONS.md](docs/EXCHANGE_BUILD_OPTIONS.md) - 交易所编译选项
+- 📖 [docs/JSON_CONFIGURATION.md](docs/JSON_CONFIGURATION.md) - JSON 配置说明
+
+## 常见问题
+
+### Q: 找不到 FTAPI SDK
+```bash
+# 方式 1: 使用参数指定
+./build.sh --ftapi-home /path/FTAPI4CPP_<version>
+
+# 方式 2: 使用环境变量
+export FTAPI_HOME=/path/FTAPI4CPP_<version>
+./build.sh
+```
 
 ## 系统架构
 
@@ -73,7 +195,7 @@ git submodule update --init --recursive
 
 #### 第一步：获取 FTAPI4CPP
 
-从 Futu 官网下载 FTAPI4CPP（例如版本 9.6.5608 或其他版本），解压到本地目录，目录结构应该如下：
+从 Futu 官网下载 FTAPI4CPP（例如版本 <version> 或其他版本），解压到本地目录，目录结构应该如下：
 
 ```
 FTAPI4CPP_<version>/

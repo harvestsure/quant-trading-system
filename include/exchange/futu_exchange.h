@@ -3,8 +3,20 @@
 #include "exchange_interface.h"
 #include <mutex>
 #include <vector>
+#include <map>
+#include <thread>
 
- 
+// Forward declarations
+#ifdef ENABLE_FUTU
+namespace Futu {
+    class FTAPI_Qot;
+    class FTAPI_Trd;
+}
+namespace Qot_Common {
+    class Security;
+}
+class FutuSpi;
+#endif
 
 // Futu API 配置
 struct FutuConfig {
@@ -70,22 +82,19 @@ private:
     bool connected_;
     mutable std::mutex mutex_;
     
+    #ifdef ENABLE_FUTU
+    Futu::FTAPI_Qot* qot_api_ = nullptr;  // 行情API
+    Futu::FTAPI_Trd* trd_api_ = nullptr;  // 交易API
+    FutuSpi* spi_ = nullptr;              // 回调处理
+    std::vector<uint64_t> account_ids_;   // 账户列表
+    #endif
+    
     // Futu API 相关内部方法
-    bool initFutuAPI();
     bool unlockTrade();
-    std::string convertStockCode(const std::string& symbol);
+    bool getAccountList();
     
-    // 数据转换方法（将Futu原始数据转换为统一格式）
-    OrderData convertFutuOrder(const void* futu_order);
-    KlineData convertFutuKLine(const void* futu_kline);
-    Snapshot convertFutuSnapshot(const void* futu_snapshot);
-    ExchangePosition convertFutuPosition(const void* futu_position);
-    
-    // 事件发布方法（内部使用）
-    void publishTickEvent(const std::string& symbol, const void* futu_tick);
-    void publishKLineEvent(const std::string& symbol, const void* futu_kline);
-    void publishOrderEvent(const OrderData& order);
-    void publishTradeEvent(const void* futu_trade);
+    #ifdef ENABLE_FUTU
+    Qot_Common::Security convertToSecurity(const std::string& symbol);
+    int32_t convertKLineType(const std::string& kline_type);
+    #endif
 };
-
- 

@@ -119,7 +119,26 @@ set(CORE_SOURCES
 set(EXCHANGE_SOURCES "")
 
 if(ENABLE_FUTU)
-    list(APPEND EXCHANGE_SOURCES src/exchange/futu_exchange.cpp)
+    # 添加源文件
+    list(APPEND EXCHANGE_SOURCES 
+        src/exchange/futu_exchange.cpp
+        src/exchange/futu_spi.cpp
+    )
+    
+    # 根据 CMAKE_BUILD_TYPE 选择对应的库
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        set(FTAPI_PREBUILT_DIR "${FTAPI_HOME}/Bin/Mac/Debug")
+        message(STATUS "Using Debug libraries from ${FTAPI_PREBUILT_DIR}")
+    else()
+        set(FTAPI_PREBUILT_DIR "${FTAPI_HOME}/Bin/Mac/Release")
+        message(STATUS "Using Release libraries from ${FTAPI_PREBUILT_DIR}")
+    endif()
+    
+    list(APPEND EXCHANGE_LIBRARIES 
+        "${FTAPI_PREBUILT_DIR}/libFTAPI.a"
+        "${FTAPI_PREBUILT_DIR}/libprotobuf.a"
+        "${FTAPI_PREBUILT_DIR}/libFTAPIChannel.dylib"
+    )
 endif()
 
 if(ENABLE_IBKR)
@@ -143,13 +162,8 @@ set(BASE_LIBRARIES
     dl
 )
 
-# 根据启用的交易所添加对应的链接库
-set(EXCHANGE_LIBRARIES "")
-
-if(ENABLE_FUTU)
-    # 链接 FTAPI 需要的库：libFTAPI.a、libprotobuf.a、libFTAPIChannel.dylib
-    list(APPEND EXCHANGE_LIBRARIES FTAPI protobuf FTAPIChannel)
-endif()
+# EXCHANGE_LIBRARIES 已经在上面的代码块中设置好了
+# 不要在这里重新初始化为空
 
 if(ENABLE_IBKR)
     list(APPEND EXCHANGE_LIBRARIES TwsApi)  # TWS API library
