@@ -83,7 +83,20 @@ if(ENABLE_FUTU)
         find_library(FTAPI_CHANNEL_LIB FTAPIChannel PATHS ${FTAPI_CH_LIB_PATH} REQUIRED)
         set(FUTU_LIBRARIES futu_api ${FTAPI_CHANNEL_LIB} Ws2_32 Rpcrt4)
     else()
-        set(FUTU_LIBRARIES futu_api FTAPIChannel)
+        # macOS/Linux: 根据构建类型定位 FTAPIChannel 库
+        if(APPLE)
+            if(CMAKE_BUILD_TYPE MATCHES Debug)
+                set(FTAPI_CH_LIB_PATH "${FTAPI_HOME}/Bin/Mac/Debug")
+            else()
+                set(FTAPI_CH_LIB_PATH "${FTAPI_HOME}/Bin/Mac/Release")
+            endif()
+        else()
+            # Linux
+            set(FTAPI_CH_LIB_PATH "${FTAPI_HOME}/Bin/Centos7")
+        endif()
+        
+        find_library(FTAPI_CHANNEL_LIB FTAPIChannel PATHS ${FTAPI_CH_LIB_PATH} REQUIRED)
+        set(FUTU_LIBRARIES futu_api ${FTAPI_CHANNEL_LIB})
     endif()
 
     message(STATUS "FTAPI integration completed as sub-projects")
