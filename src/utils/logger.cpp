@@ -7,9 +7,18 @@ Logger& Logger::getInstance() {
 }
 
 Logger::Logger() {
-    log_file_.open("trading_system.log", std::ios::app);
+    // 创建 logs 目录（如果不存在）
+    try {
+        std::filesystem::create_directories("logs");
+    } catch (const std::exception& e) {
+        std::cerr << "Failed to create logs directory: " << e.what() << std::endl;
+    }
+    
+    // 打开日志文件
+    std::string log_path = "logs/trading_system.log";
+    log_file_.open(log_path, std::ios::app);
     if (!log_file_.is_open()) {
-        std::cerr << "Failed to open log file" << std::endl;
+        std::cerr << "Failed to open log file: " << log_path << std::endl;
     }
 }
 

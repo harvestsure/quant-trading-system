@@ -1,16 +1,17 @@
-# Futu量化交易系统
+# 量化交易系统
 
-一个基于C++和Futu API的量化交易系统，支持实盘和模拟盘交易，实现追涨杀跌策略。
+一个基于C++的多交易所量化交易系统，支持Futu、IBKR、Binance等多个交易平台，支持实盘和模拟盘交易，实现追涨杀跌策略。
 
 ## 功能特性
 
+- ✅ **多交易所支持**：支持Futu、IBKR、Binance等多个交易平台
 - ✅ **双模式交易**：支持实盘和模拟盘交易
-- ✅ **市场扫描**：定时5分钟扫描港股市场，筛选优秀个股
+- ✅ **市场扫描**：定时扫描市场，筛选符合条件的交易机会
 - ✅ **策略系统**：灵活的策略管理器，支持多种策略并行运行
-- ✅ **配置管理**：从配置文件读取所有参数
+- ✅ **配置管理**：JSON配置文件，支持多个交易所配置
 - ✅ **数据订阅**：实时订阅K线和Ticker数据
 - ✅ **持仓管理**：自动跟踪和管理所有持仓
-- ✅ **风险控制**：完善的风险管理系统，包括止损、止盈、仓位控制
+- ✅ **风险控制**：完善的风险管理系统，包括止损、止盈、追踪止损、仓位控制
 
 ## 系统架构
 
@@ -45,9 +46,11 @@ quant-trading-system/
 
 - C++17或更高版本
 - CMake 3.15或更高版本
-- Futu OpenD（已配置好）
-- Futu API库（需要放在 `futu-api/` 目录）
 - `nlohmann/json`（项目使用 git 子模块存放在 `libraries/json`，CMake 会优先使用该子模块）
+- 根据使用的交易所选择对应的API库：
+  - **Futu**：FTAPI4CPP（需要单独下载配置）
+  - **IBKR**：Interactive Brokers TWS API
+  - **Binance**：Binance 官方API（需要API Key和Secret）
 
 ### 获取依赖（git 子模块）
 
@@ -64,51 +67,208 @@ git submodule add https://github.com/nlohmann/json.git libraries/json
 git submodule update --init --recursive
 ```
 
-### 编译步骤（建议使用项目脚本）
+### 配置 Futu API（FTAPI4CPP）
 
-项目根提供了 `build.sh` 简化构建流程。示例：
+如果需要启用 Futu 交易所支持，需要先配置 FTAPI4CPP 库。
+
+#### 第一步：获取 FTAPI4CPP
+
+从 Futu 官网下载 FTAPI4CPP（例如版本 9.6.5608 或其他版本），解压到本地目录，目录结构应该如下：
+
+```
+FTAPI4CPP_<version>/
+├── Include/          # 头文件目录
+│   ├── FTAPI.h
+│   ├── FTSPI.h
+│   ├── FTAPIChannel.h
+│   └── ...
+└── Bin/              # 库文件目录
+    ├── Mac/
+    │   ├── Release/
+    │   │   ├── libFTAPI.a
+    │   │   ├── libprotobuf.a
+    │   │   └── libFTAPIChannel.dylib
+    │   └── Debug/
+    ├── Ubuntu16.04/
+    ├── Centos7/
+    └── ...
+```
+
+#### 第二步：编译时指定 FTAPI_HOME
+
+有 **3 种方式** 配置 FTAPI 路径：
+
+**方式一：命令行参数（推荐）**
 
 ```bash
 chmod +x build.sh
-./build.sh --enable-futu
+./build.sh --ftapi-home /path/to/FTAPI4CPP_<version> --debug
 ```
 
-在 macOS 上，`nproc` 可能不可用；`build.sh` 已做兼容处理（会回退到 `sysctl -n hw.ncpu`）。如果你手动使用 `make`，也请先创建 `build` 目录并运行 `cmake ..`。
+**方式二：环境变量**
 
 ```bash
-# 手动构建示例
+export FTAPI_HOME=/path/to/FTAPI4CPP_<version>
+./build.sh --debug
+```
+
+**方式三：CMake 直接调用**
+
+```bash
 mkdir -p build
 cd build
-cmake ..
-make -j$(sysctl -n hw.ncpu)
+cmake -DFTAPI_HOME=/path/to/FTAPI4CPP_<version> -DCMAKE_BUILD_TYPE=Release ..
+make -j$(nproc)  # macOS 使用：make -j$(sysctl -n hw.ncpu)
+```
+
+### 编译步骤
+
+#### 使用构建脚本（推荐）
+
+```bash
+# 启用 Futu 交易所，Release 模式
+./build.sh --ftapi-home /path/to/FTAPI4CPP_<version>
+
+# 启用 Futu 交易所，Debug 模式
+./build.sh --ftapi-home /path/to/FTAPI4CPP_<version> --debug
+
+# 禁用 Futu，启用 IBKR
+./build.sh --disable-futu --enable-ibkr
+
+# 查看所有可用选项
+./build.sh --help
+```
+
+#### 手动编译
+
+```bash
+mkdir -p build
+cd build
+cmake -DFTAPI_HOME=/path/to/FTAPI4CPP_<version> -DCMAKE_BUILD_TYPE=Release ..
+make -j$(sysctl -n hw.ncpu)  # macOS
+# 或
+make -j$(nproc)  # Linux
+```
+
+#### 构建脚本参数说明
+
+```
+选项说明:
+  --enable-futu              启用 Futu 交易所支持（默认：ON）
+  --disable-futu             禁用 Futu 交易所支持
+  --enable-ibkr              启用 IBKR 交易所支持（默认：OFF）
+  --enable-binance           启用 Binance 交易所支持（默认：OFF）
+  --ftapi-home <path>        指定 FTAPI4CPP 主目录
+  --debug                    Debug 模式编译
+  --release                  Release 模式编译（默认）
+  --help                     显示帮助信息
 ```
 
 ## 配置说明
 
-编辑 `config.json` 文件配置系统参数：
+编辑 `config.json` 文件配置系统参数。系统采用JSON格式配置，支持多个交易所：
 
-```ini
-# 交易模式
-is_simulation=true              # true=模拟盘, false=实盘
+### 基础配置
 
-# Futu OpenD连接配置
-futu_host=127.0.0.1            # OpenD服务器地址
-futu_port=11111                # OpenD端口
-unlock_password=               # 解锁密码（可选）
+```json
+{
+  "exchange": {
+    "type": "FUTU",           // 交易所类型：FUTU、IBKR、BINANCE
+    "is_simulation": true      // true=模拟盘, false=实盘
+  }
+}
+```
 
-# 资金管理
-max_position_size=100000.0     # 最大持仓金额
-single_stock_max_ratio=0.2     # 单只股票最大占比20%
-max_positions=10               # 最多持仓数量
+### 交易所连接配置
 
-# 扫描参数
-scan_interval_minutes=5        # 扫描间隔（分钟）
-market=HK                      # 市场代码
+**Futu配置**：
+```json
+"futu": {
+  "host": "127.0.0.1",        // OpenD服务器地址
+  "port": 11111,               // OpenD端口
+  "unlock_password": "",       // 解锁密码（可选）
+  "market": "HK"               // 市场代码：HK、US等
+}
+```
 
-# 风险管理
-stop_loss_ratio=0.05          # 止损比例5%
-take_profit_ratio=0.15        # 止盈比例15%
-max_daily_loss=0.03           # 每日最大亏损3%
+**IBKR配置**：
+```json
+"ibkr": {
+  "host": "127.0.0.1",        // TWS服务器地址
+  "port": 7496,                // TWS端口
+  "client_id": 0,              // 客户端ID
+  "account": ""                // 账户ID
+}
+```
+
+**Binance配置**：
+```json
+"binance": {
+  "api_key": "",              // API Key
+  "api_secret": "",           // API Secret
+  "testnet": true              // true=测试网, false=正式网
+}
+```
+
+### 资金管理
+
+```json
+"trading": {
+  "max_position_size": 100000.0,    // 最大持仓金额
+  "single_stock_max_ratio": 0.2,    // 单只股票最大占比20%
+  "max_positions": 10               // 最多同时持仓数量
+}
+```
+
+### 市场扫描参数
+
+```json
+"scanner": {
+  "interval_minutes": 5,       // 扫描间隔（分钟）
+  "min_price": 1.0,            // 最低价格
+  "max_price": 1000.0,         // 最高价格
+  "min_volume": 1000000,       // 最小成交量
+  "min_turnover_rate": 0.01,   // 最小换手率
+  "top_n": 10                  // 返回前N个候选股票
+}
+```
+
+### 风险管理
+
+```json
+"risk": {
+  "stop_loss_ratio": 0.05,      // 止损比例5%
+  "take_profit_ratio": 0.15,    // 止盈比例15%
+  "max_daily_loss": 0.03,       // 每日最大亏损3%
+  "trailing_stop_ratio": 0.03,  // 追踪止损比例3%
+  "max_drawdown": 0.1           // 最大回撤限制10%
+}
+```
+
+### 策略参数
+
+```json
+"strategy": {
+  "momentum": {
+    "enabled": true,           // 是否启用动量策略
+    "rsi_period": 14,          // RSI周期
+    "rsi_oversold": 30,        // RSI超卖阈值
+    "rsi_overbought": 70,      // RSI超买阈值
+    "ma_period": 20,           // 移动平均线周期
+    "volume_factor": 1.5       // 成交量系数
+  }
+}
+```
+
+### 日志配置
+
+```json
+"logging": {
+  "level": "INFO",            // 日志级别：DEBUG、INFO、WARNING、ERROR
+  "console": true,             // 是否输出到控制台
+  "file": true,                // 是否输出到文件
+  "file_path": "logs/trading.log"  // 日志文件路径
+}
 ```
 
 ## 使用说明
@@ -121,12 +281,12 @@ max_daily_loss=0.03           # 每日最大亏损3%
 
 ### 2. 系统工作流程
 
-1. **启动**：系统加载配置，连接Futu OpenD
-2. **扫描**：每5分钟扫描港股市场，筛选符合条件的股票
+1. **启动**：系统加载配置，连接到选定的交易所（Futu/IBKR/Binance）
+2. **扫描**：定时扫描市场，筛选符合条件的交易机会
 3. **分析**：策略接收扫描结果，进行技术分析
-4. **交易**：满足条件时自动下单买入
-5. **监控**：实时监控持仓，触发止损/止盈时自动卖出
-6. **报告**：每分钟打印系统状态和持仓信息
+4. **交易**：满足条件时自动下单执行
+5. **监控**：实时监控持仓，触发止损/止盈/追踪止损时自动平仓
+6. **报告**：定期输出系统状态和持仓信息
 
 ### 3. 停止系统
 
@@ -228,10 +388,11 @@ strategy_mgr.addStrategy(my_strategy);
 ⚠️ **重要提示**：
 
 1. **先用模拟盘**：充分测试后再使用实盘
-2. **Futu API配置**：确保OpenD正常运行并配置好
-3. **代码集成**：需要将Futu API的实际调用代码集成到标注了`TODO`的位置
+2. **交易所配置**：根据使用的交易所正确配置连接参数和凭证
+3. **API集成**：确保已正确集成所选交易所的API库
 4. **资金安全**：合理设置风险参数，不要超出承受范围
 5. **监控系统**：运行时持续监控系统状态和日志
+6. **权限设置**：确保API凭证具有所需的交易权限
 
 ## TODO集成清单
 
