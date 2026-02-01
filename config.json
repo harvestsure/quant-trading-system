@@ -1,0 +1,67 @@
+{
+  "exchange": {
+    "type": "FUTU",
+    "is_simulation": true
+  },
+  
+  "futu": {
+    "host": "127.0.0.1",
+    "port": 11111,
+    "unlock_password": "",
+    "market": "HK"
+  },
+  
+  "ibkr": {
+    "host": "127.0.0.1",
+    "port": 7496,
+    "client_id": 0,
+    "account": ""
+  },
+  
+  "binance": {
+    "api_key": "",
+    "api_secret": "",
+    "testnet": true
+  },
+  
+  "trading": {
+    "max_position_size": 100000.0,
+    "single_stock_max_ratio": 0.2,
+    "max_positions": 10
+  },
+  
+  "scanner": {
+    "interval_minutes": 5,
+    "min_price": 1.0,
+    "max_price": 1000.0,
+    "min_volume": 1000000,
+    "min_turnover_rate": 0.01,
+    "top_n": 10
+  },
+  
+  "risk": {
+    "stop_loss_ratio": 0.05,
+    "take_profit_ratio": 0.15,
+    "max_daily_loss": 0.03,
+    "trailing_stop_ratio": 0.03,
+    "max_drawdown": 0.1
+  },
+  
+  "strategy": {
+    "momentum": {
+      "enabled": true,
+      "rsi_period": 14,
+      "rsi_oversold": 30,
+      "rsi_overbought": 70,
+      "ma_period": 20,
+      "volume_factor": 1.5
+    }
+  },
+  
+  "logging": {
+    "level": "INFO",
+    "console": true,
+    "file": true,
+    "file_path": "logs/trading.log"
+  }
+}

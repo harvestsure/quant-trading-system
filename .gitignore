@@ -1,0 +1,44 @@
+# Build artifacts
+/build/
+/CMakeFiles/
+/CMakeCache.txt
+/cmake_install.cmake
+/Makefile
+
+# Object files and binaries
+*.o
+*.obj
+*.exe
+*.out
+
+# Logs
+/logs/
+*.log
+trading_system.log
+
+# IDE and editor
+/.vscode/
+.idea/
+*.swp
+*~
+
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+
+# Environment
+.env
+.env.local
+
+# Third-party API libs (local builds)
+futu-api/lib/
+ibkr-api/lib/
+
+# Coverage / test outputs
+coverage/
+
+# Node
+node_modules/
