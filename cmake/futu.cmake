@@ -68,10 +68,15 @@ if(ENABLE_FUTU)
     # 汇总变量
     set(FUTU_INCLUDE_DIRS ${FTAPI_HOME}/Include)
     list(APPEND FUTU_LINK_DIRECTORIES ${FTAPI_LIB_PATH})
-    set(FUTU_SOURCES src/exchange/futu_exchange.cpp)
+    set(FUTU_SOURCES 
+        src/exchange/futu_exchange.cpp
+        src/exchange/futu_spi.cpp
+    )
     
     if(WIN32)
         set(FUTU_LIBRARIES FTAPI libprotobuf FTAPIChannel Ws2_32 Rpcrt4)
+    elseif(APPLE)
+        set(FUTU_LIBRARIES FTAPI protobuf FTAPIChannel)
     else()
         set(FUTU_LIBRARIES FTAPI protobuf FTAPIChannel)
     endif()
