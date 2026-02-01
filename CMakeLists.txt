@@ -30,57 +30,11 @@ endif()
 # Include directories
 include_directories(${CMAKE_SOURCE_DIR}/include)
 
-# 根据启用的交易所添加对应的include目录和link目录
+# 交易所配置
+include(cmake/futu.cmake)
 if(ENABLE_FUTU)
-    message(STATUS "Futu Exchange: ENABLED")
-    add_definitions(-DENABLE_FUTU)
-    
-    # FTAPI4CPP 路径配置 - 支持 CMake 选项和环境变量
-    if(NOT FTAPI_HOME)
-        if(DEFINED ENV{FTAPI_HOME})
-            set(FTAPI_HOME "$ENV{FTAPI_HOME}")
-            message(STATUS "Using FTAPI_HOME from environment: ${FTAPI_HOME}")
-        else()
-            message(FATAL_ERROR "FTAPI_HOME not specified. Please use one of the following methods:\n"
-                    "  1. cmake -DFTAPI_HOME=/path/to/FTAPI4CPP ..\n"
-                    "  2. export FTAPI_HOME=/path/to/FTAPI4CPP && cmake ..\n"
-                    "  3. ./build.sh --ftapi-home /path/to/FTAPI4CPP")
-        endif()
-    else()
-        message(STATUS "Using FTAPI_HOME from CMake option: ${FTAPI_HOME}")
-    endif()
-    
-    # 检查 FTAPI 是否存在
-    if(NOT EXISTS ${FTAPI_HOME})
-        message(FATAL_ERROR "FTAPI4CPP not found at ${FTAPI_HOME}. Please verify the path is correct.")
-    endif()
-    
-    # 根据系统和编译类型选择合适的库路径
-    if(APPLE)
-        if(CMAKE_BUILD_TYPE MATCHES Debug)
-            set(FTAPI_LIB_PATH "${FTAPI_HOME}/Bin/Mac/Debug")
-        else()
-            set(FTAPI_LIB_PATH "${FTAPI_HOME}/Bin/Mac/Release")
-        endif()
-    elseif(UNIX AND NOT APPLE)
-        if(CMAKE_SYSTEM_NAME MATCHES "Linux")
-            # 根据你的 Linux 版本选择 Ubuntu 或 CentOS
-            if(EXISTS "${FTAPI_HOME}/Bin/Ubuntu16.04")
-                set(FTAPI_LIB_PATH "${FTAPI_HOME}/Bin/Ubuntu16.04")
-            else()
-                set(FTAPI_LIB_PATH "${FTAPI_HOME}/Bin/Centos7")
-            endif()
-        endif()
-    endif()
-    
-    # 添加 include 目录
-    include_directories(${FTAPI_HOME}/Include)
-    
-    # 添加库文件目录
-    link_directories(${FTAPI_LIB_PATH})
-    
-    message(STATUS "FTAPI Include: ${FTAPI_HOME}/Include")
-    message(STATUS "FTAPI Lib Path: ${FTAPI_LIB_PATH}")
+    include_directories(${FUTU_INCLUDE_DIRS})
+    link_directories(${FUTU_LINK_DIRECTORIES})
 endif()
 
 if(ENABLE_IBKR)
@@ -119,26 +73,7 @@ set(CORE_SOURCES
 set(EXCHANGE_SOURCES "")
 
 if(ENABLE_FUTU)
-    # 添加源文件
-    list(APPEND EXCHANGE_SOURCES 
-        src/exchange/futu_exchange.cpp
-        src/exchange/futu_spi.cpp
-    )
-    
-    # 根据 CMAKE_BUILD_TYPE 选择对应的库
-    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        set(FTAPI_PREBUILT_DIR "${FTAPI_HOME}/Bin/Mac/Debug")
-        message(STATUS "Using Debug libraries from ${FTAPI_PREBUILT_DIR}")
-    else()
-        set(FTAPI_PREBUILT_DIR "${FTAPI_HOME}/Bin/Mac/Release")
-        message(STATUS "Using Release libraries from ${FTAPI_PREBUILT_DIR}")
-    endif()
-    
-    list(APPEND EXCHANGE_LIBRARIES 
-        "${FTAPI_PREBUILT_DIR}/libFTAPI.a"
-        "${FTAPI_PREBUILT_DIR}/libprotobuf.a"
-        "${FTAPI_PREBUILT_DIR}/libFTAPIChannel.dylib"
-    )
+    list(APPEND EXCHANGE_SOURCES ${FUTU_SOURCES})
 endif()
 
 if(ENABLE_IBKR)
@@ -156,14 +91,17 @@ set(SOURCES ${CORE_SOURCES} ${EXCHANGE_SOURCES})
 add_executable(quant-trading-system ${SOURCES})
 
 # 基础链接库
-set(BASE_LIBRARIES
-    Threads::Threads
-    pthread
-    dl
-)
+set(BASE_LIBRARIES Threads::Threads)
+if(NOT WIN32)
+    list(APPEND BASE_LIBRARIES pthread dl)
+endif()
 
-# EXCHANGE_LIBRARIES 已经在上面的代码块中设置好了
-# 不要在这里重新初始化为空
+# 根据启用的交易所添加对应的链接库
+set(EXCHANGE_LIBRARIES "")
+
+if(ENABLE_FUTU)
+    list(APPEND EXCHANGE_LIBRARIES ${FUTU_LIBRARIES})
+endif()
 
 if(ENABLE_IBKR)
     list(APPEND EXCHANGE_LIBRARIES TwsApi)  # TWS API library
@@ -182,5 +120,8 @@ target_link_libraries(quant-trading-system
 
 # Compiler options
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    target_compile_options(quant-trading-system PRIVATE -Wall -Wextra -O3)
+    target_compile_options(quant-trading-system PRIVATE -Wall -Wextra $<$<CONFIG:Release>:-O3>)
+elseif(MSVC)
+    # 在 MSVC 中，/O2 与 Debug 模式下的 /RTC1 冲突
+    target_compile_options(quant-trading-system PRIVATE /W4 /utf-8 $<$<CONFIG:Release>:/O2>)
 endif()
