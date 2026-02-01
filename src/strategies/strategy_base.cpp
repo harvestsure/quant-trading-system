@@ -59,6 +59,7 @@ void StrategyBase::onTick(const std::string& symbol, const TickData& tick) {
 
 void StrategyBase::onSnapshot(const Snapshot& snapshot) {
     // 默认实现为空，子类可以覆盖
+    (void)snapshot;
 }
 
 void StrategyBase::subscribeStock(const std::string& symbol) {

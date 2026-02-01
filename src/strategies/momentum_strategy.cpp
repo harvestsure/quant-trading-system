@@ -132,6 +132,9 @@ bool MomentumStrategy::shouldExit(const std::string& symbol, double current_pric
 }
 
 int MomentumStrategy::calculateQuantity(const std::string& symbol, double price) {
+    (void)symbol;
+    (void)price;
+    
     auto& risk_mgr = RiskManager::getInstance();
     const auto& config = ConfigManager::getInstance().getConfig();
     
