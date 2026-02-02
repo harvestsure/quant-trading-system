@@ -75,7 +75,7 @@ public:
     Snapshot getSnapshot(const std::string& symbol) override;
     
     // ========== 市场扫描相关 ==========
-    std::vector<std::string> getMarketStockList(const std::string& market) override;
+    std::vector<std::string> getMarketStockList() override;
     std::map<std::string, Snapshot> getBatchSnapshots(const std::vector<std::string>& stock_codes) override;
     
 private:

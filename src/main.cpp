@@ -137,11 +137,19 @@ int main(int argc, char* argv[]) {
     // 创建并启动市场扫描器
     // 扫描器会自动通知策略管理器创建/删除策略实例
     MarketScanner scanner;
+    
+    // 添加所有已连接的交易所到扫描器
+    for (auto& exchange : exchanges) {
+        if (exchange->isConnected()) {
+            scanner.addExchange(exchange);
+        }
+    }
+    
     scanner.start();
     LOG_INFO("Market scanner started - will create strategy instances for qualified stocks");
     
-    std::cout << "\nSystem is running. Press Ctrl+C to stop.\n";
-    std::cout << "Status updates will be printed every minute.\n\n";
+    LOG_INFO("\nSystem is running. Press Ctrl+C to stop.\n");
+    LOG_INFO("Status updates will be printed every minute.\n\n");
     
     // 主循环
     int status_counter = 0;
@@ -158,7 +166,7 @@ int main(int argc, char* argv[]) {
     }
     
     // 优雅退出
-    std::cout << "\nShutting down system...\n";
+    LOG_INFO("\nShutting down system...\n");
     
     // 停止扫描器
     scanner.stop();
@@ -184,7 +192,7 @@ int main(int argc, char* argv[]) {
     
     LOG_INFO("=== Quant Trading System Stopped ===");
     
-    std::cout << "\nSystem stopped successfully.\n";
+    LOG_INFO("\nSystem stopped successfully.\n");
     
     return 0;
 }

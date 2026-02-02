@@ -579,6 +579,37 @@ Futu::u32_t FutuSpi::SendGetPlateSecurity(const std::string& plate_code) {
     }
 }
 
+Futu::u32_t FutuSpi::SendGetStaticInfo(int market_type, int security_type) {
+    if (qot_api_ == nullptr) {
+        LOG_ERROR("Qot API not initialized");
+        return 0;
+    }
+    
+    try {
+        Qot_GetStaticInfo::Request req;
+        auto* c2s = req.mutable_c2s();
+        
+        // 设置市场类型
+        c2s->set_market(market_type);
+        
+        // 设置证券类型（股票）
+        c2s->set_sectype(security_type);
+        
+        Futu::u32_t serial_no = qot_api_->GetStaticInfo(req);
+        if (serial_no == 0) {
+            LOG_ERROR("Failed to send get static info request");
+            return 0;
+        }
+        
+        LOG_INFO(std::string("Sent get static info request, serial_no=") + std::to_string(serial_no));
+        return serial_no;
+        
+    } catch (const std::exception& e) {
+        LOG_ERROR(std::string("Exception during send get static info: ") + e.what());
+        return 0;
+    }
+}
+
 Futu::u32_t FutuSpi::SendSubscribeTick(const Qot_Common::Security& security) {
     if (qot_api_ == nullptr) {
         LOG_ERROR("Qot API not initialized");
@@ -755,6 +786,10 @@ void FutuSpi::OnReply_GetTradeDate(Futu::u32_t nSerialNo, const Qot_GetTradeDate
 }
 
 void FutuSpi::OnReply_GetStaticInfo(Futu::u32_t nSerialNo, const Qot_GetStaticInfo::Response &stRsp) {
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        static_info_responses_[nSerialNo] = stRsp;
+    }
     LOG_INFO("OnReply_GetStaticInfo");
     NotifyReply(nSerialNo);
 }

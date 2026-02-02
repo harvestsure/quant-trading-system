@@ -247,13 +247,13 @@ Snapshot ExchangeManager::getSnapshot(const std::string& exchange_name, const st
     return exchange->getSnapshot(symbol);
 }
 
-std::vector<std::string> ExchangeManager::getMarketStockList(const std::string& exchange_name, const std::string& market) {
+std::vector<std::string> ExchangeManager::getMarketStockList(const std::string& exchange_name) {
     auto exchange = getExchange(exchange_name);
     if (!exchange) {
         LOG_ERROR("Exchange not initialized");
         return {};
     }
-    return exchange->getMarketStockList(market);
+    return exchange->getMarketStockList();
 }
 
 std::map<std::string, Snapshot> ExchangeManager::getBatchSnapshots(

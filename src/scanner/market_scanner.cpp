@@ -8,7 +8,7 @@
 #include <iomanip>
 #include <mutex>
 
-MarketScanner::MarketScanner() : running_(false), exchange_(nullptr) {
+MarketScanner::MarketScanner() : running_(false) {
     LOG_INFO("Market scanner initialized");
 }
 
@@ -16,10 +16,11 @@ MarketScanner::~MarketScanner() {
     stop();
 }
 
-void MarketScanner::setExchange(std::shared_ptr<IExchange> exchange) {
-    exchange_ = exchange;
+void MarketScanner::addExchange(std::shared_ptr<IExchange> exchange) {
+    std::lock_guard<std::mutex> lock(exchanges_mutex_);
     if (exchange) {
-        LOG_INFO("Exchange set: " + exchange->getName());
+        exchanges_.push_back(exchange);
+        LOG_INFO("Exchange added: " + exchange->getName());
     }
 }
 
@@ -29,15 +30,16 @@ void MarketScanner::start() {
         return;
     }
     
-    if (!exchange_) {
-        LOG_ERROR("Exchange not set");
+    std::lock_guard<std::mutex> lock(exchanges_mutex_);
+    if (exchanges_.empty()) {
+        LOG_ERROR("No exchanges configured");
         return;
     }
     
     running_ = true;
     scan_thread_ = std::make_unique<std::thread>(&MarketScanner::scanLoop, this);
     
-    LOG_INFO("Market scanner started");
+    LOG_INFO("Market scanner started with " + std::to_string(exchanges_.size()) + " exchange(s)");
 }
 
 void MarketScanner::stop() {
@@ -51,41 +53,79 @@ void MarketScanner::stop() {
     LOG_INFO("Market scanner stopped");
 }
 
-void MarketScanner::setWatchList(const std::vector<std::string>& watch_list) {
+void MarketScanner::setWatchList(const std::string& exchange_name, const std::vector<std::string>& watch_list) {
     std::lock_guard<std::mutex> lock(watch_list_mutex_);
-    watch_list_ = watch_list;
+    watch_lists_[exchange_name] = watch_list;
     
-    LOG_INFO("Watch list set: " + std::to_string(watch_list_.size()) + " stocks");
+    LOG_INFO("Watch list set for " + exchange_name + ": " + std::to_string(watch_list.size()) + " stocks");
+}
+
+void MarketScanner::clearWatchLists() {
+    std::lock_guard<std::mutex> lock(watch_list_mutex_);
+    watch_lists_.clear();
+    LOG_INFO("All watch lists cleared");
 }
 
 MarketScanner::ScannerStatus MarketScanner::getStatus() const {
     std::lock_guard<std::mutex> watch_lock(watch_list_mutex_);
     std::lock_guard<std::mutex> qualified_lock(qualified_stocks_mutex_);
+    std::lock_guard<std::mutex> exch_lock(exchanges_mutex_);
+    
+    std::vector<std::string> active_exchanges;
+    std::map<std::string, int> watch_counts;
+    
+    for (const auto& exch : exchanges_) {
+        if (exch && exch->isConnected()) {
+            active_exchanges.push_back(exch->getName());
+            auto it = watch_lists_.find(exch->getName());
+            if (it != watch_lists_.end()) {
+                watch_counts[exch->getName()] = it->second.size();
+            }
+        }
+    }
     
     return {
         running_,
-        static_cast<int>(watch_list_.size()),
+        watch_counts,
         qualified_stocks_,
-        static_cast<int>(qualified_stocks_.size()),
         isInTradingTime(),
-        isInOpeningPeriod()
+        isInOpeningPeriod(),
+        active_exchanges
     };
 }
 
 void MarketScanner::scanLoop() {
-    // 初始化监控列表
+    // 初始化各个交易所的监控列表（从对应的交易所获取）
     {
         std::lock_guard<std::mutex> lock(watch_list_mutex_);
-        if (watch_list_.empty() && exchange_) {
-            watch_list_ = exchange_->getMarketStockList("HK");
-            LOG_INFO("Loaded " + std::to_string(watch_list_.size()) + " stocks for scanning");
+        std::lock_guard<std::mutex> exch_lock(exchanges_mutex_);
+        
+        for (const auto& exchange : exchanges_) {
+            if (!exchange || !exchange->isConnected()) {
+                continue;
+            }
+            
+            const auto& exch_name = exchange->getName();
+            if (watch_lists_.find(exch_name) == watch_lists_.end()) {
+                auto stock_list = exchange->getMarketStockList();
+                if (!stock_list.empty()) {
+                    watch_lists_[exch_name] = stock_list;
+                    LOG_INFO("Loaded " + std::to_string(stock_list.size()) + " stocks from " + exch_name);
+                }
+            }
         }
     }
     
     while (running_) {
         try {
-            if (isInTradingTime()) {
-                scanOnce();
+            if (/*isInTradingTime()*/ true) {
+                // 为每个交易所执行扫描
+                std::lock_guard<std::mutex> exch_lock(exchanges_mutex_);
+                for (const auto& exchange : exchanges_) {
+                    if (exchange && exchange->isConnected()) {
+                        performScan(exchange);
+                    }
+                }
                 
                 // 根据时段选择扫描间隔
                 int interval_ms = isInOpeningPeriod() ? 
@@ -109,17 +149,29 @@ void MarketScanner::scanLoop() {
     }
 }
 
-void MarketScanner::scanOnce() {
-    std::lock_guard<std::mutex> lock(watch_list_mutex_);
-    
-    if (watch_list_.empty()) {
-        LOG_WARNING("Watch list is empty, skipping scan");
+void MarketScanner::performScan(const std::shared_ptr<IExchange>& exchange) {
+    if (!exchange) {
         return;
     }
     
-    LOG_INFO("Starting market scan...");
+    const auto& exch_name = exchange->getName();
+    std::vector<std::string> watch_list;
     
-    auto results = performScan();
+    // 获取该交易所的监控列表
+    {
+        std::lock_guard<std::mutex> lock(watch_list_mutex_);
+        auto it = watch_lists_.find(exch_name);
+        if (it == watch_lists_.end() || it->second.empty()) {
+            LOG_WARNING("No watch list for exchange: " + exch_name);
+            return;
+        }
+        watch_list = it->second;
+    }
+    
+    LOG_INFO("Starting market scan for " + exch_name + "...");
+    
+    // 获取市场数据
+    auto results = batchFetchMarketData(exchange, watch_list);
     
     // 筛选符合条件的股票
     std::vector<ScanResult> filtered_results;
@@ -143,13 +195,13 @@ void MarketScanner::scanOnce() {
     // 更新合格股票列表
     {
         std::lock_guard<std::mutex> lock(qualified_stocks_mutex_);
-        qualified_stocks_.clear();
+        qualified_stocks_[exch_name].clear();
         for (const auto& result : filtered_results) {
-            qualified_stocks_.push_back(result.symbol);
+            qualified_stocks_[exch_name].push_back(result.symbol);
         }
     }
     
-    LOG_INFO("Scan completed: found " + std::to_string(filtered_results.size()) + " qualified stocks");
+    LOG_INFO("Scan completed for " + exch_name + ": found " + std::to_string(filtered_results.size()) + " qualified stocks");
     
     // 将结果传递给策略管理器
     if (!filtered_results.empty()) {
@@ -157,20 +209,11 @@ void MarketScanner::scanOnce() {
     }
 }
 
-std::vector<ScanResult> MarketScanner::performScan() {
+std::vector<ScanResult> MarketScanner::batchFetchMarketData(const std::shared_ptr<IExchange>& exchange, const std::vector<std::string>& symbols) {
     std::vector<ScanResult> all_results;
     
-    // 分批获取数据
-    all_results = batchFetchMarketData(watch_list_);
-    
-    return all_results;
-}
-
-std::vector<ScanResult> MarketScanner::batchFetchMarketData(const std::vector<std::string>& symbols) {
-    std::vector<ScanResult> all_results;
-    
-    if (!exchange_) {
-        LOG_ERROR("Exchange not set");
+    if (!exchange || !exchange->isConnected()) {
+        LOG_ERROR("Exchange not connected");
         return all_results;
     }
     
@@ -185,11 +228,11 @@ std::vector<ScanResult> MarketScanner::batchFetchMarketData(const std::vector<st
         
         try {
             // 调用交易所的批量快照接口
-            auto snapshots = exchange_->getBatchSnapshots(batch);
+            auto snapshots = exchange->getBatchSnapshots(batch);
             
             // 转换为ScanResult并计算评分
             for (const auto& pair : snapshots) {
-                ScanResult result = convertSnapshotToScanResult(pair.second);
+                ScanResult result = convertSnapshotToScanResult(pair.second, exchange->getName());
                 result.score = calculateScore(result);
                 all_results.push_back(result);
             }
@@ -205,7 +248,7 @@ std::vector<ScanResult> MarketScanner::batchFetchMarketData(const std::vector<st
     return all_results;
 }
 
-ScanResult MarketScanner::convertSnapshotToScanResult(const Snapshot& snapshot) const {
+ScanResult MarketScanner::convertSnapshotToScanResult(const Snapshot& snapshot, const std::string& exchange_name) const {
     ScanResult result;
     result.symbol = snapshot.symbol;
     result.stock_name = snapshot.name;

@@ -87,7 +87,7 @@ public:
     virtual Snapshot getSnapshot(const std::string& symbol) = 0;
     
     // ========== 市场扫描相关 ==========
-    virtual std::vector<std::string> getMarketStockList(const std::string& market) = 0;
+    virtual std::vector<std::string> getMarketStockList() = 0;
     virtual std::map<std::string, Snapshot> getBatchSnapshots(const std::vector<std::string>& stock_codes) = 0;
     
     // ========== 事件驱动接口 ==========

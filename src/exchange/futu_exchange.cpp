@@ -929,7 +929,7 @@ Snapshot FutuExchange::getSnapshot(const std::string& symbol) {
 
 // ========== 市场扫描相关 ==========
 
-std::vector<std::string> FutuExchange::getMarketStockList(const std::string& market) {
+std::vector<std::string> FutuExchange::getMarketStockList() {
     if (!connected_) {
         LOG_ERROR("Not connected to exchange");
         return {};
@@ -944,23 +944,82 @@ std::vector<std::string> FutuExchange::getMarketStockList(const std::string& mar
     }
     
     try {
-        // 使用 GetPlateSecurity 接口获取板块下的股票
-        // 或者使用 GetStaticInfo 获取市场股票信息
+        // 确定市场类型，对应 Python 中的 market 参数
+        int32_t market_type = Qot_Common::QotMarket_HK_Security;
+        if (config_.market == "HK") {
+            market_type = Qot_Common::QotMarket_HK_Security;
+        } else if (config_.market == "US") {
+            market_type = Qot_Common::QotMarket_US_Security;
+        } else if (config_.market == "SH") {
+            market_type = Qot_Common::QotMarket_CNSH_Security;
+        } else if (config_.market == "SZ") {
+            market_type = Qot_Common::QotMarket_CNSZ_Security;
+        }
         
-        // 这里简化实现，返回一些常见股票
-        LOG_WARNING("getMarketStockList not fully implemented, returning sample stocks");
+        std::stringstream ss;
+        ss << "Getting stock basic info for market: " << config_.market;
+        LOG_INFO(ss.str());
+        
+        // 使用 GetStaticInfo 接口获取市场中的所有股票（对应 Python 的 get_stock_basicinfo）
+        // 传入市场类型和股票类型（SecurityType_Eqty 表示股票）
+        Futu::u32_t serial_no = spi_->SendGetStaticInfo(market_type, Qot_Common::SecurityType_Eqty);
+        if (serial_no == 0) {
+            LOG_ERROR("Failed to send get static info request");
+            return stocks;
+        }
+        
+        // 等待响应（15秒超时，因为股票列表可能很大）
+        if (!spi_->WaitForReply(serial_no, 15000)) {
+            LOG_ERROR("Get static info timeout");
+            return stocks;
+        }
+        
+        // 从响应中提取股票代码
+        {
+            std::lock_guard<std::mutex> lock(spi_->mutex_);
+            auto it = spi_->static_info_responses_.find(serial_no);
+            if (it != spi_->static_info_responses_.end()) {
+                const auto& rsp = it->second;
+                if (rsp.rettype() >= 0 && rsp.has_s2c()) {
+                    const auto& s2c = rsp.s2c();
+                    int static_info_count = s2c.staticinfolist_size();
+                    
+                    std::stringstream log_ss;
+                    log_ss << "Found " << static_info_count << " stocks in market " << config_.market;
+                    LOG_INFO(log_ss.str());
+                    
+                    for (int i = 0; i < static_info_count; ++i) {
+                        const auto& info = s2c.staticinfolist(i);
+                        if (info.has_basic() && info.basic().has_security()) {
+                            const auto& sec = info.basic().security();
+                            std::string code = sec.code();
+                            if (!code.empty()) {
+                                stocks.push_back(code);
+                            }
+                        }
+                    }
+                } else {
+                    LOG_ERROR(std::string("Get static info failed: ") + rsp.retmsg());
+                }
+                spi_->static_info_responses_.erase(it);
+            }
+        }
         
     } catch (const std::exception& e) {
         LOG_ERROR(std::string("Exception during get market stock list: ") + e.what());
     }
-    #endif
-    
-    // 返回一些示例股票代码
+    #else
+    LOG_WARNING("FTAPI is not enabled, returning sample stocks");
     stocks.push_back("00700");  // 腾讯
     stocks.push_back("09988");  // 阿里巴巴
     stocks.push_back("03690");  // 美团
     stocks.push_back("01810");  // 小米
     stocks.push_back("02318");  // 平安
+    #endif
+    
+    std::stringstream ss;
+    ss << "Retrieved " << stocks.size() << " stocks from market " << config_.market;
+    LOG_INFO(ss.str());
     
     return stocks;
 }

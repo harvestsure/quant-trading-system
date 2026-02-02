@@ -46,6 +46,7 @@ public:
     Futu::u32_t SendGetHistoryKLine(const Qot_Common::Security& security, int kline_type, int count);
     Futu::u32_t SendGetSecuritySnapshot(const std::vector<Qot_Common::Security>& securities);
     Futu::u32_t SendGetPlateSecurity(const std::string& plate_code);
+    Futu::u32_t SendGetStaticInfo(int market_type, int security_type);
     Futu::u32_t SendSubscribeTick(const Qot_Common::Security& security);
     Futu::u32_t SendUnsubscribeKLine(const Qot_Common::Security& security);
 
@@ -133,6 +134,7 @@ public:
     std::map<Futu::u32_t, Qot_GetKL::Response> kline_responses_;
     std::map<Futu::u32_t, Qot_RequestHistoryKL::Response> history_kline_responses_;
     std::map<Futu::u32_t, Qot_GetPlateSecurity::Response> plate_security_responses_;
+    std::map<Futu::u32_t, Qot_GetStaticInfo::Response> static_info_responses_;
     
     friend class FutuExchange;  // 允许 FutuExchange 访问 mutex_ 和响应数据
     

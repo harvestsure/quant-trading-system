@@ -58,7 +58,7 @@ public:
     );
     
     Snapshot getSnapshot(const std::string& exchange_name, const std::string& symbol);
-    std::vector<std::string> getMarketStockList(const std::string& exchange_name, const std::string& market);
+    std::vector<std::string> getMarketStockList(const std::string& exchange_name);
     std::map<std::string, Snapshot> getBatchSnapshots(const std::string& exchange_name, const std::vector<std::string>& stock_codes);
     
     // Callbacks have been replaced with event engine
