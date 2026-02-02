@@ -12,8 +12,6 @@ using namespace Futu;
 FutuExchange::FutuExchange(const FutuConfig& config)
     : config_(config), connected_(false) {
     #ifdef ENABLE_FUTU
-    qot_api_ = nullptr;
-    trd_api_ = nullptr;
     spi_ = nullptr;
     #endif
     
@@ -38,75 +36,18 @@ bool FutuExchange::connect() {
     
     #ifdef ENABLE_FUTU
     try {
-        // 初始化 FTAPI
-        FTAPI::Init();
-        
-        // 创建 SPI 回调处理
+        // 创建 SPI 回调处理和API管理
         spi_ = new FutuSpi(this);
         
-        // 创建行情API
-        qot_api_ = FTAPI::CreateQotApi();
-        if (qot_api_ == nullptr) {
-            LOG_ERROR("Failed to create Qot API");
-            return false;
-        }
-        
-        // 设置客户端信息
-        qot_api_->SetClientInfo("QUANT_TRADING_SYSTEM", 1);
-        
-        // 注册回调
-        qot_api_->RegisterConnSpi(spi_);
-        qot_api_->RegisterQotSpi(spi_);
-        
-        // 初始化连接
-        bool ret = qot_api_->InitConnect(config_.host.c_str(), config_.port, false);
-        if (!ret) {
-            LOG_ERROR("Failed to initialize Qot API connection");
-            FTAPI::ReleaseQotApi(qot_api_);
-            qot_api_ = nullptr;
+        // 初始化API
+        if (!spi_->InitApi(config_.host, config_.port)) {
+            LOG_ERROR("Failed to initialize FTAPI");
             delete spi_;
             spi_ = nullptr;
             return false;
         }
         
         // 等待连接成功
-        std::this_thread::sleep_for(std::chrono::seconds(2));
-        
-        // 创建交易API
-        trd_api_ = FTAPI::CreateTrdApi();
-        if (trd_api_ == nullptr) {
-            LOG_ERROR("Failed to create Trd API");
-            qot_api_->Close();
-            FTAPI::ReleaseQotApi(qot_api_);
-            qot_api_ = nullptr;
-            delete spi_;
-            spi_ = nullptr;
-            return false;
-        }
-        
-        // 设置客户端信息
-        trd_api_->SetClientInfo("QUANT_TRADING_SYSTEM", 1);
-        
-        // 注册回调
-        trd_api_->RegisterConnSpi(spi_);
-        trd_api_->RegisterTrdSpi(spi_);
-        
-        // 初始化连接
-        ret = trd_api_->InitConnect(config_.host.c_str(), config_.port, false);
-        if (!ret) {
-            LOG_ERROR("Failed to initialize Trd API connection");
-            qot_api_->Close();
-            FTAPI::ReleaseQotApi(qot_api_);
-            FTAPI::ReleaseTrdApi(trd_api_);
-            qot_api_ = nullptr;
-            trd_api_ = nullptr;
-            delete spi_;
-            spi_ = nullptr;
-            return false;
-        }
-        
-        // 等待连接成功
-        std::this_thread::sleep_for(std::chrono::seconds(2));
         
         LOG_INFO("FTAPI connection initialized");
         
@@ -152,28 +93,11 @@ bool FutuExchange::disconnect() {
     }
     
     #ifdef ENABLE_FUTU
-    if (qot_api_ != nullptr) {
-        qot_api_->UnregisterQotSpi();
-        qot_api_->UnregisterConnSpi();
-        qot_api_->Close();
-        FTAPI::ReleaseQotApi(qot_api_);
-        qot_api_ = nullptr;
-    }
-    
-    if (trd_api_ != nullptr) {
-        trd_api_->UnregisterTrdSpi();
-        trd_api_->UnregisterConnSpi();
-        trd_api_->Close();
-        FTAPI::ReleaseTrdApi(trd_api_);
-        trd_api_ = nullptr;
-    }
-    
     if (spi_ != nullptr) {
+        spi_->ReleaseApi();
         delete spi_;
         spi_ = nullptr;
     }
-    
-    FTAPI::UnInit();
     #endif
     
     connected_ = false;
@@ -196,19 +120,13 @@ bool FutuExchange::unlockTrade() {
     }
     
     #ifdef ENABLE_FUTU
-    if (trd_api_ == nullptr || spi_ == nullptr) {
-        LOG_ERROR("Trd API not initialized");
+    if (spi_ == nullptr) {
+        LOG_ERROR("SPI not initialized");
         return false;
     }
     
     try {
-        Trd_UnlockTrade::Request req;
-        auto* c2s = req.mutable_c2s();
-        c2s->set_unlock(true);
-        c2s->set_pwdmd5(config_.unlock_password);
-        c2s->set_securityfirm(Trd_Common::SecurityFirm_FutuSecurities);
-        
-        u32_t serial_no = trd_api_->UnlockTrade(req);
+        Futu::u32_t serial_no = spi_->SendUnlockTrade(config_.unlock_password);
         if (serial_no == 0) {
             LOG_ERROR("Failed to send unlock trade request");
             return false;
@@ -235,17 +153,13 @@ bool FutuExchange::unlockTrade() {
 
 bool FutuExchange::getAccountList() {
     #ifdef ENABLE_FUTU
-    if (trd_api_ == nullptr || spi_ == nullptr) {
-        LOG_ERROR("Trd API not initialized");
+    if (spi_ == nullptr) {
+        LOG_ERROR("SPI not initialized");
         return false;
     }
     
     try {
-        Trd_GetAccList::Request req;
-        auto* c2s = req.mutable_c2s();
-        c2s->set_userid(0);  // 0 表示当前连接对应的用户
-        
-        u32_t serial_no = trd_api_->GetAccList(req);
+        Futu::u32_t serial_no = spi_->SendGetAccList();
         if (serial_no == 0) {
             LOG_ERROR("Failed to send get account list request");
             return false;
@@ -369,8 +283,8 @@ AccountInfo FutuExchange::getAccountInfo() {
     AccountInfo info;
     
     #ifdef ENABLE_FUTU
-    if (trd_api_ == nullptr || spi_ == nullptr) {
-        LOG_ERROR("Trd API not initialized");
+    if (spi_ == nullptr) {
+        LOG_ERROR("SPI not initialized");
         return info;
     }
     
@@ -383,14 +297,9 @@ AccountInfo FutuExchange::getAccountInfo() {
         // 使用第一个账户
         uint64_t acc_id = account_ids_[0];
         
-        Trd_GetFunds::Request req;
-        auto* c2s = req.mutable_c2s();
-        auto* header = c2s->mutable_header();
-        header->set_trdenv(config_.is_simulation ? Trd_Common::TrdEnv_Simulate : Trd_Common::TrdEnv_Real);
-        header->set_accid(acc_id);
-        header->set_trdmarket(Trd_Common::TrdMarket_HK);
-        
-        u32_t serial_no = trd_api_->GetFunds(req);
+        Futu::u32_t serial_no = spi_->SendGetFunds(acc_id, 
+            config_.is_simulation ? Trd_Common::TrdEnv_Simulate : Trd_Common::TrdEnv_Real,
+            Trd_Common::TrdMarket_HK);
         if (serial_no == 0) {
             LOG_ERROR("Failed to send get funds request");
             return info;
@@ -442,7 +351,7 @@ std::vector<ExchangePosition> FutuExchange::getPositions() {
     std::vector<ExchangePosition> positions;
     
     #ifdef ENABLE_FUTU
-    if (trd_api_ == nullptr || spi_ == nullptr) {
+    if (spi_ == nullptr) {
         LOG_ERROR("Trd API not initialized");
         return positions;
     }
@@ -456,14 +365,9 @@ std::vector<ExchangePosition> FutuExchange::getPositions() {
         // 使用第一个账户
         uint64_t acc_id = account_ids_[0];
         
-        Trd_GetPositionList::Request req;
-        auto* c2s = req.mutable_c2s();
-        auto* header = c2s->mutable_header();
-        header->set_trdenv(config_.is_simulation ? Trd_Common::TrdEnv_Simulate : Trd_Common::TrdEnv_Real);
-        header->set_accid(acc_id);
-        header->set_trdmarket(Trd_Common::TrdMarket_HK);
-        
-        u32_t serial_no = trd_api_->GetPositionList(req);
+        Futu::u32_t serial_no = spi_->SendGetPositionList(acc_id,
+            config_.is_simulation ? Trd_Common::TrdEnv_Simulate : Trd_Common::TrdEnv_Real,
+            Trd_Common::TrdMarket_HK);
         if (serial_no == 0) {
             LOG_ERROR("Failed to send get position list request");
             return positions;
@@ -544,8 +448,8 @@ std::string FutuExchange::placeOrder(
     std::string order_id = "";
     
     #ifdef ENABLE_FUTU
-    if (trd_api_ == nullptr || spi_ == nullptr) {
-        LOG_ERROR("Trd API not initialized");
+    if (spi_ == nullptr) {
+        LOG_ERROR("SPI not initialized");
         return order_id;
     }
     
@@ -558,43 +462,28 @@ std::string FutuExchange::placeOrder(
         // 使用第一个账户
         uint64_t acc_id = account_ids_[0];
         
-        Trd_PlaceOrder::Request req;
-        auto* c2s = req.mutable_c2s();
-        
-        // 设置交易头
-        auto* header = c2s->mutable_header();
-        header->set_trdenv(config_.is_simulation ? Trd_Common::TrdEnv_Simulate : Trd_Common::TrdEnv_Real);
-        header->set_accid(acc_id);
-        header->set_trdmarket(Trd_Common::TrdMarket_HK);
-        
         // 设置交易方向
+        int order_side = Trd_Common::TrdSide_Buy;
         if (side == "BUY") {
-            c2s->set_trdside(Trd_Common::TrdSide_Buy);
+            order_side = Trd_Common::TrdSide_Buy;
         } else {
-            c2s->set_trdside(Trd_Common::TrdSide_Sell);
+            order_side = Trd_Common::TrdSide_Sell;
         }
         
         // 设置订单类型
+        int order_type_val = Trd_Common::OrderType_Normal;
         if (order_type == "MARKET") {
-            c2s->set_ordertype(Trd_Common::OrderType_Market);
-        } else {
-            c2s->set_ordertype(Trd_Common::OrderType_Normal);
-            c2s->set_price(price);
+            order_type_val = Trd_Common::OrderType_Market;
+            price = 0.0;  // 市价单不需要价格
         }
         
-        // 解析symbol获取股票代码
-        std::string code = symbol;
-        size_t dot_pos = symbol.find('.');
-        if (dot_pos != std::string::npos) {
-            code = symbol.substr(dot_pos + 1);
-        }
+        // 创建股票对象
+        Qot_Common::Security security = convertToSecurity(symbol);
         
-        c2s->set_code(code);
-        c2s->set_qty(quantity);
-        c2s->set_secmarket(Trd_Common::TrdSecMarket_HK);
-        c2s->set_adjustprice(true);  // 自动调整价格到合法范围
-        
-        u32_t serial_no = trd_api_->PlaceOrder(req);
+        Futu::u32_t serial_no = spi_->SendPlaceOrder(acc_id,
+            config_.is_simulation ? Trd_Common::TrdEnv_Simulate : Trd_Common::TrdEnv_Real,
+            Trd_Common::TrdMarket_HK,
+            security, order_side, order_type_val, quantity, price);
         if (serial_no == 0) {
             LOG_ERROR("Failed to send place order request");
             return order_id;
@@ -637,8 +526,8 @@ bool FutuExchange::cancelOrder(const std::string& order_id) {
     }
     
     #ifdef ENABLE_FUTU
-    if (trd_api_ == nullptr || spi_ == nullptr) {
-        LOG_ERROR("Trd API not initialized");
+    if (spi_ == nullptr) {
+        LOG_ERROR("SPI not initialized");
         return false;
     }
     
@@ -651,22 +540,9 @@ bool FutuExchange::cancelOrder(const std::string& order_id) {
         uint64_t acc_id = account_ids_[0];
         uint64_t order_id_num = std::stoull(order_id);
         
-        Trd_ModifyOrder::Request req;
-        auto* c2s = req.mutable_c2s();
-        
-        // 设置交易头
-        auto* header = c2s->mutable_header();
-        header->set_trdenv(config_.is_simulation ? Trd_Common::TrdEnv_Simulate : Trd_Common::TrdEnv_Real);
-        header->set_accid(acc_id);
-        header->set_trdmarket(Trd_Common::TrdMarket_HK);
-        
-        // 设置订单ID
-        c2s->set_orderid(order_id_num);
-        
-        // 设置修改操作为撤单
-        c2s->set_modifyorderop(Trd_Common::ModifyOrderOp_Cancel);
-        
-        u32_t serial_no = trd_api_->ModifyOrder(req);
+        Futu::u32_t serial_no = spi_->SendCancelOrder(acc_id,
+            config_.is_simulation ? Trd_Common::TrdEnv_Simulate : Trd_Common::TrdEnv_Real,
+            order_id_num);
         if (serial_no == 0) {
             LOG_ERROR("Failed to send cancel order request");
             return false;
@@ -698,8 +574,8 @@ bool FutuExchange::modifyOrder(const std::string& order_id, int new_quantity, do
     }
     
     #ifdef ENABLE_FUTU
-    if (trd_api_ == nullptr || spi_ == nullptr) {
-        LOG_ERROR("Trd API not initialized");
+    if (spi_ == nullptr) {
+        LOG_ERROR("SPI not initialized");
         return false;
     }
     
@@ -712,27 +588,9 @@ bool FutuExchange::modifyOrder(const std::string& order_id, int new_quantity, do
         uint64_t acc_id = account_ids_[0];
         uint64_t order_id_num = std::stoull(order_id);
         
-        Trd_ModifyOrder::Request req;
-        auto* c2s = req.mutable_c2s();
-        
-        // 设置交易头
-        auto* header = c2s->mutable_header();
-        header->set_trdenv(config_.is_simulation ? Trd_Common::TrdEnv_Simulate : Trd_Common::TrdEnv_Real);
-        header->set_accid(acc_id);
-        header->set_trdmarket(Trd_Common::TrdMarket_HK);
-        
-        // 设置订单ID
-        c2s->set_orderid(order_id_num);
-        
-        // 设置修改操作
-        c2s->set_modifyorderop(Trd_Common::ModifyOrderOp_Normal);
-        
-        // 设置新的价格和数量
-        c2s->set_price(new_price);
-        c2s->set_qty(new_quantity);
-        c2s->set_adjustprice(true);
-        
-        u32_t serial_no = trd_api_->ModifyOrder(req);
+        Futu::u32_t serial_no = spi_->SendModifyOrder(acc_id,
+            config_.is_simulation ? Trd_Common::TrdEnv_Simulate : Trd_Common::TrdEnv_Real,
+            order_id_num, new_quantity, new_price);
         if (serial_no == 0) {
             LOG_ERROR("Failed to send modify order request");
             return false;
@@ -794,28 +652,17 @@ bool FutuExchange::subscribeKLine(const std::string& symbol, const std::string& 
     }
     
     #ifdef ENABLE_FUTU
-    if (qot_api_ == nullptr || spi_ == nullptr) {
-        LOG_ERROR("Qot API not initialized");
+    if (spi_ == nullptr) {
+        LOG_ERROR("SPI not initialized");
         return false;
     }
     
     try {
-        Qot_Sub::Request req;
-        auto* c2s = req.mutable_c2s();
-        
-        // 添加要订阅的股票
-        auto* security = c2s->add_securitylist();
-        *security = convertToSecurity(symbol);
-        
-        // 添加订阅类型 - K线
+        // 创建股票对象
+        Qot_Common::Security security = convertToSecurity(symbol);
         int32_t kl_type = convertKLineType(kline_type);
-        c2s->add_subtypelist(kl_type);
         
-        // 设置为订阅
-        c2s->set_issuborunsub(true);
-        c2s->set_isregorunregpush(true);
-        
-        u32_t serial_no = qot_api_->Sub(req);
+        Futu::u32_t serial_no = spi_->SendSubscribeKLine(security, kl_type);
         if (serial_no == 0) {
             LOG_ERROR("Failed to send subscribe KLine request");
             return false;
@@ -850,22 +697,14 @@ bool FutuExchange::unsubscribeKLine(const std::string& symbol) {
     }
     
     #ifdef ENABLE_FUTU
-    if (qot_api_ == nullptr) {
+    if (spi_ == nullptr) {
         return false;
     }
     
     try {
-        Qot_Sub::Request req;
-        auto* c2s = req.mutable_c2s();
+        Qot_Common::Security security = convertToSecurity(symbol);
         
-        // 添加要取消订阅的股票
-        auto* security = c2s->add_securitylist();
-        *security = convertToSecurity(symbol);
-        
-        // 设置为取消订阅
-        c2s->set_issuborunsub(false);
-        
-        u32_t serial_no = qot_api_->Sub(req);
+        Futu::u32_t serial_no = spi_->SendUnsubscribeKLine(security);
         if (serial_no == 0) {
             LOG_ERROR("Failed to send unsubscribe KLine request");
             return false;
@@ -895,28 +734,15 @@ bool FutuExchange::subscribeTick(const std::string& symbol) {
     }
     
     #ifdef ENABLE_FUTU
-    if (qot_api_ == nullptr || spi_ == nullptr) {
-        LOG_ERROR("Qot API not initialized");
+    if (spi_ == nullptr) {
+        LOG_ERROR("SPI not initialized");
         return false;
     }
     
     try {
-        Qot_Sub::Request req;
-        auto* c2s = req.mutable_c2s();
+        Qot_Common::Security security = convertToSecurity(symbol);
         
-        // 添加要订阅的股票
-        auto* security = c2s->add_securitylist();
-        *security = convertToSecurity(symbol);
-        
-        // 添加订阅类型 - 基础报价(相当于Tick)
-        c2s->add_subtypelist(Qot_Common::SubType_Basic);
-        c2s->add_subtypelist(Qot_Common::SubType_Ticker);
-        
-        // 设置为订阅
-        c2s->set_issuborunsub(true);
-        c2s->set_isregorunregpush(true);
-        
-        u32_t serial_no = qot_api_->Sub(req);
+        Futu::u32_t serial_no = spi_->SendSubscribeTick(security);
         if (serial_no == 0) {
             LOG_ERROR("Failed to send subscribe Tick request");
             return false;
@@ -969,29 +795,16 @@ std::vector<KlineData> FutuExchange::getHistoryKLine(
     std::vector<KlineData> klines;
     
     #ifdef ENABLE_FUTU
-    if (qot_api_ == nullptr || spi_ == nullptr) {
-        LOG_ERROR("Qot API not initialized");
+    if (spi_ == nullptr) {
+        LOG_ERROR("SPI not initialized");
         return klines;
     }
     
     try {
-        Qot_RequestHistoryKL::Request req;
-        auto* c2s = req.mutable_c2s();
+        Qot_Common::Security security = convertToSecurity(symbol);
+        int32_t kl_type = convertKLineType(kline_type);
         
-        // 设置股票
-        auto* security = c2s->mutable_security();
-        *security = convertToSecurity(symbol);
-        
-        // 设置K线类型
-        c2s->set_kltype(convertKLineType(kline_type));
-        
-        // 设置请求数量
-        c2s->set_maxackklnum(count);
-        
-        // 设置复权类型
-        c2s->set_rehabtype(Qot_Common::RehabType_None);
-        
-        u32_t serial_no = qot_api_->RequestHistoryKL(req);
+        Futu::u32_t serial_no = spi_->SendGetHistoryKLine(security, kl_type, count);
         if (serial_no == 0) {
             LOG_ERROR("Failed to send get history KLine request");
             return klines;
@@ -1053,20 +866,16 @@ Snapshot FutuExchange::getSnapshot(const std::string& symbol) {
     Snapshot snapshot;
     
     #ifdef ENABLE_FUTU
-    if (qot_api_ == nullptr || spi_ == nullptr) {
-        LOG_ERROR("Qot API not initialized");
+    if (spi_ == nullptr) {
+        LOG_ERROR("SPI not initialized");
         return snapshot;
     }
     
     try {
-        Qot_GetSecuritySnapshot::Request req;
-        auto* c2s = req.mutable_c2s();
+        Qot_Common::Security security = convertToSecurity(symbol);
+        std::vector<Qot_Common::Security> securities = {security};
         
-        // 添加要查询的股票
-        auto* security = c2s->add_securitylist();
-        *security = convertToSecurity(symbol);
-        
-        u32_t serial_no = qot_api_->GetSecuritySnapshot(req);
+        Futu::u32_t serial_no = spi_->SendGetSecuritySnapshot(securities);
         if (serial_no == 0) {
             LOG_ERROR("Failed to send get snapshot request");
             return snapshot;
@@ -1128,8 +937,8 @@ std::vector<std::string> FutuExchange::getMarketStockList(const std::string& mar
     std::vector<std::string> stocks;
     
     #ifdef ENABLE_FUTU
-    if (qot_api_ == nullptr || spi_ == nullptr) {
-        LOG_ERROR("Qot API not initialized");
+    if (spi_ == nullptr) {
+        LOG_ERROR("SPI not initialized");
         return stocks;
     }
     
@@ -1166,22 +975,19 @@ std::map<std::string, Snapshot> FutuExchange::getBatchSnapshots(
     std::map<std::string, Snapshot> snapshots;
     
     #ifdef ENABLE_FUTU
-    if (qot_api_ == nullptr || spi_ == nullptr) {
-        LOG_ERROR("Qot API not initialized");
+    if (spi_ == nullptr) {
+        LOG_ERROR("SPI not initialized");
         return snapshots;
     }
     
     try {
-        Qot_GetSecuritySnapshot::Request req;
-        auto* c2s = req.mutable_c2s();
-        
-        // 添加要查询的所有股票
+        // 转换股票代码列表
+        std::vector<Qot_Common::Security> securities;
         for (const auto& code : stock_codes) {
-            auto* security = c2s->add_securitylist();
-            *security = convertToSecurity(code);
+            securities.push_back(convertToSecurity(code));
         }
         
-        u32_t serial_no = qot_api_->GetSecuritySnapshot(req);
+        Futu::u32_t serial_no = spi_->SendGetSecuritySnapshot(securities);
         if (serial_no == 0) {
             LOG_ERROR("Failed to send batch get snapshot request");
             return snapshots;

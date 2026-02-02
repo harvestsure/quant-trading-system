@@ -83,9 +83,7 @@ private:
     mutable std::mutex mutex_;
     
     #ifdef ENABLE_FUTU
-    Futu::FTAPI_Qot* qot_api_ = nullptr;  // 行情API
-    Futu::FTAPI_Trd* trd_api_ = nullptr;  // 交易API
-    FutuSpi* spi_ = nullptr;              // 回调处理
+    FutuSpi* spi_ = nullptr;              // 回调处理和API管理
     std::vector<uint64_t> account_ids_;   // 账户列表
     #endif
     

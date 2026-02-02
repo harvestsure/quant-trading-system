@@ -87,6 +87,20 @@ endif()
 # 合并所有源文件
 set(SOURCES ${CORE_SOURCES} ${EXCHANGE_SOURCES})
 
+# 收集头文件（用于在 Visual Studio 中显示）
+file(GLOB_RECURSE PROJECT_HEADERS
+    ${CMAKE_SOURCE_DIR}/include/*.h
+    ${CMAKE_SOURCE_DIR}/include/*.hpp
+    ${CMAKE_SOURCE_DIR}/src/*.h
+    ${CMAKE_SOURCE_DIR}/src/*.hpp
+)
+list(APPEND SOURCES ${PROJECT_HEADERS})
+
+# 在 Visual Studio 中按目录树组织显示（只在 MSVC/VS 下生效）
+if(MSVC)
+    source_group(TREE ${CMAKE_SOURCE_DIR} FILES ${SOURCES})
+endif()
+
 # Create executable
 add_executable(quant-trading-system ${SOURCES})
 

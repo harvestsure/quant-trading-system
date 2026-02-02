@@ -18,9 +18,36 @@ public:
     explicit FutuSpi(FutuExchange* exchange);
     ~FutuSpi();
 
-    // 等待异步响应
+    // ========== API 生命周期管理 ==========
+    bool InitApi(const std::string& host, int port);
+    void ReleaseApi();
+    bool IsConnected() const;
+
+    // ========== 等待异步响应 ==========
     bool WaitForReply(Futu::u32_t serial_no, int timeout_ms = 5000);
     void NotifyReply(Futu::u32_t serial_no);
+
+    // ========== 交易类请求 Helper 方法 ==========
+    Futu::u32_t SendUnlockTrade(const std::string& password);
+    Futu::u32_t SendGetAccList();
+    Futu::u32_t SendGetFunds(Futu::u64_t acc_id, int trd_env, int trd_market);
+    Futu::u32_t SendGetPositionList(Futu::u64_t acc_id, int trd_env, int trd_market);
+    Futu::u32_t SendGetOrderList(Futu::u64_t acc_id, int trd_env, int trd_market);
+    Futu::u32_t SendPlaceOrder(Futu::u64_t acc_id, int trd_env, int trd_market, 
+                               const Qot_Common::Security& security, int order_side, 
+                               int order_type, Futu::i64_t quantity, double price);
+    Futu::u32_t SendModifyOrder(Futu::u64_t acc_id, int trd_env, Futu::u64_t order_id, 
+                                Futu::i64_t quantity, double price);
+    Futu::u32_t SendCancelOrder(Futu::u64_t acc_id, int trd_env, Futu::u64_t order_id);
+
+    // ========== 行情类请求 Helper 方法 ==========
+    Futu::u32_t SendSubscribeKLine(const Qot_Common::Security& security, int kline_type);
+    Futu::u32_t SendGetKLine(const Qot_Common::Security& security, int kline_type, int count);
+    Futu::u32_t SendGetHistoryKLine(const Qot_Common::Security& security, int kline_type, int count);
+    Futu::u32_t SendGetSecuritySnapshot(const std::vector<Qot_Common::Security>& securities);
+    Futu::u32_t SendGetPlateSecurity(const std::string& plate_code);
+    Futu::u32_t SendSubscribeTick(const Qot_Common::Security& security);
+    Futu::u32_t SendUnsubscribeKLine(const Qot_Common::Security& security);
 
     // ========== FTSPI_Conn 回调 ==========
     void OnInitConnect(Futu::FTAPI_Conn* pConn, Futu::i64_t nErrCode, const char* strDesc) override;
@@ -111,9 +138,18 @@ public:
     
 private:
     FutuExchange* exchange_;
-    std::mutex mutex_;
+    mutable std::mutex mutex_;
     std::condition_variable cv_;
     std::map<Futu::u32_t, bool> reply_flags_;
+    
+    // API 实例管理
+    Futu::FTAPI_Qot* qot_api_ = nullptr;
+    Futu::FTAPI_Trd* trd_api_ = nullptr;
+	bool is_qot_connected_ = false;
+	bool is_trd_connected_ = false;
+    bool api_initialized_ = false;
+    std::string host_;
+    int port_ = 11111;
 };
 
 #endif // ENABLE_FUTU

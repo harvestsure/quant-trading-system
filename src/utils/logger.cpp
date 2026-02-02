@@ -1,5 +1,10 @@
 #include "utils/logger.h"
 #include <iostream>
+#include <filesystem>
+#include <chrono>
+#include <sstream>
+#include <iomanip>
+#include <ctime>
 
 Logger& Logger::getInstance() {
     static Logger instance;
@@ -14,8 +19,20 @@ Logger::Logger() {
         std::cerr << "Failed to create logs directory: " << e.what() << std::endl;
     }
     
-    // 打开日志文件
-    std::string log_path = "logs/trading_system.log";
+    // 打开日志文件，文件名带时间戳以便区分每次运行
+    auto now = std::chrono::system_clock::now();
+    std::time_t now_c = std::chrono::system_clock::to_time_t(now);
+    std::tm tm;
+#ifdef _WIN32
+    localtime_s(&tm, &now_c);
+#else
+    localtime_r(&now_c, &tm);
+#endif
+    std::stringstream ts_ss;
+    ts_ss << std::put_time(&tm, "%Y%m%d_%H%M%S");
+    std::string timestamp = ts_ss.str();
+
+    std::string log_path = "logs/trading_system_" + timestamp + ".log";
     log_file_.open(log_path, std::ios::app);
     if (!log_file_.is_open()) {
         std::cerr << "Failed to open log file: " << log_path << std::endl;
