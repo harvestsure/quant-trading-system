@@ -256,7 +256,7 @@ std::shared_ptr<IExchange> ExchangeFactory::createExchange(
 
 ```
 ======================================
-  Building Futu Quant Trading System
+  Building Quant Trading System
 ======================================
 
 Exchange Configuration:

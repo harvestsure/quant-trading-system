@@ -72,7 +72,7 @@ void printSystemStatus() {
 
 int main(int argc, char* argv[]) {
     std::cout << "===================================\n";
-    std::cout << "  Futu Quant Trading System v1.0\n";
+    std::cout << "  Quant Trading System v1.0\n";
     std::cout << "===================================\n\n";
     
     // 设置信号处理
@@ -93,16 +93,18 @@ int main(int argc, char* argv[]) {
     
     const auto& config = config_mgr.getConfig();
     
-    // 显示配置信息
-    std::cout << "Exchange Type: " << config.exchange.type << "\n";
-    std::cout << "Trading Mode: " << (config.exchange.is_simulation ? "SIMULATION" : "LIVE") << "\n";
-    std::cout << "Connection: " << config.futu.host << ":" << config.futu.port << "\n";
-    std::cout << "Market: " << config.futu.market << "\n";
+    // 显示交易所配置信息
+    std::cout << "Enabled Exchanges:\n";
+    for (const auto& exch : config.exchanges) {
+        std::cout << "  - " << exch.name 
+                  << " (Enabled: " << (exch.is_enabled ? "Yes" : "No")
+                  << ", Mode: " << (exch.is_simulation ? "SIMULATION" : "LIVE") << ")\n";
+    }
     std::cout << "Scan Interval: " << config.scanner.interval_minutes << " minutes\n";
     std::cout << "Max Position Size: $" << config.trading.max_position_size << "\n";
     std::cout << "Max Positions: " << config.trading.max_positions << "\n\n";
     
-    LOG_INFO("=== Futu Quant Trading System Started ===");
+    LOG_INFO("=== Quant Trading System Started ===");
     
     // 启动事件引擎（必须在其他模块之前启动）
     auto& event_engine = EventEngine::getInstance();
@@ -112,34 +114,21 @@ int main(int argc, char* argv[]) {
     // 初始化交易所
     auto& exchange_mgr = ExchangeManager::getInstance();
     
-    // 转换交易所类型
-    ExchangeType exchange_type = ExchangeType::FUTU;
-    if (config.exchange.type == "IBKR") {
-        exchange_type = ExchangeType::IBKR;
-    } else if (config.exchange.type == "BINANCE") {
-        exchange_type = ExchangeType::BINANCE;
-    }
-    
-    // 准备交易所配置
-    std::map<std::string, std::string> exchange_config;
-    exchange_config["host"] = config.futu.host;
-    exchange_config["port"] = std::to_string(config.futu.port);
-    exchange_config["unlock_password"] = config.futu.unlock_password;
-    exchange_config["is_simulation"] = config.exchange.is_simulation ? "true" : "false";
-    exchange_config["market"] = config.futu.market;
-    
-    // 初始化并连接交易所
-    if (!exchange_mgr.initExchange(exchange_type, exchange_config)) {
-        LOG_ERROR("Failed to initialize exchange");
+    // 初始化所有启用的交易所
+    if (!exchange_mgr.initAllExchanges(config.exchanges)) {
+        LOG_ERROR("Failed to initialize exchanges");
         return 1;
     }
     
-    if (!exchange_mgr.connect()) {
-        LOG_ERROR("Failed to connect to exchange");
-        return 1;
+    // 连接所有交易所
+    auto exchanges = exchange_mgr.getAllExchanges();
+    for (auto& exchange : exchanges) {
+        if (!exchange->connect()) {
+            LOG_WARNING("Failed to connect to exchange: " + exchange->getName());
+        } else {
+            LOG_INFO("Connected to exchange: " + exchange->getName());
+        }
     }
-    
-    LOG_INFO("Exchange connected successfully");
     
     // 初始化策略管理器（策略实例将由扫描器动态创建）
     auto& strategy_mgr = StrategyManager::getInstance();
@@ -182,15 +171,18 @@ int main(int argc, char* argv[]) {
     // 打印最终状态
     printSystemStatus();
     
-    // 断开交易所连接
-    exchange_mgr.disconnect();
-    LOG_INFO("Exchange disconnected");
+    // 断开所有交易所连接
+    exchanges = exchange_mgr.getAllExchanges();
+    for (auto& exchange : exchanges) {
+        exchange->disconnect();
+        LOG_INFO("Disconnected from exchange: " + exchange->getName());
+    }
     
     // 停止事件引擎（最后停止）
     event_engine.stop();
     LOG_INFO("Event engine stopped");
     
-    LOG_INFO("=== Futu Quant Trading System Stopped ===");
+    LOG_INFO("=== Quant Trading System Stopped ===");
     
     std::cout << "\nSystem stopped successfully.\n";
     

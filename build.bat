@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 
 echo ======================================
-echo   Building Futu Quant Trading System
+echo   Building Quant Trading System
 echo ======================================
 echo.
 

@@ -1,16 +1,14 @@
 #include "scanner/market_scanner.h"
 #include "managers/strategy_manager.h"
-#include "config/config_manager.h"
 #include "utils/logger.h"
 #include <chrono>
 #include <thread>
 #include <algorithm>
-#include <sstream>
+#include <ctime>
+#include <iomanip>
+#include <mutex>
 
-// 注意：这里需要包含Futu API的头文件
-// #include "ftdc_trader_api.h"
-
-MarketScanner::MarketScanner() : running_(false) {
+MarketScanner::MarketScanner() : running_(false), exchange_(nullptr) {
     LOG_INFO("Market scanner initialized");
 }
 
@@ -18,9 +16,21 @@ MarketScanner::~MarketScanner() {
     stop();
 }
 
+void MarketScanner::setExchange(std::shared_ptr<IExchange> exchange) {
+    exchange_ = exchange;
+    if (exchange) {
+        LOG_INFO("Exchange set: " + exchange->getName());
+    }
+}
+
 void MarketScanner::start() {
     if (running_) {
         LOG_WARNING("Market scanner already running");
+        return;
+    }
+    
+    if (!exchange_) {
+        LOG_ERROR("Exchange not set");
         return;
     }
     
@@ -41,28 +51,72 @@ void MarketScanner::stop() {
     LOG_INFO("Market scanner stopped");
 }
 
+void MarketScanner::setWatchList(const std::vector<std::string>& watch_list) {
+    std::lock_guard<std::mutex> lock(watch_list_mutex_);
+    watch_list_ = watch_list;
+    
+    LOG_INFO("Watch list set: " + std::to_string(watch_list_.size()) + " stocks");
+}
+
+MarketScanner::ScannerStatus MarketScanner::getStatus() const {
+    std::lock_guard<std::mutex> watch_lock(watch_list_mutex_);
+    std::lock_guard<std::mutex> qualified_lock(qualified_stocks_mutex_);
+    
+    return {
+        running_,
+        static_cast<int>(watch_list_.size()),
+        qualified_stocks_,
+        static_cast<int>(qualified_stocks_.size()),
+        isInTradingTime(),
+        isInOpeningPeriod()
+    };
+}
+
 void MarketScanner::scanLoop() {
-    const auto& config = ConfigManager::getInstance().getConfig();
-    auto scan_interval = std::chrono::minutes(config.scanner.interval_minutes);
+    // 初始化监控列表
+    {
+        std::lock_guard<std::mutex> lock(watch_list_mutex_);
+        if (watch_list_.empty() && exchange_) {
+            watch_list_ = exchange_->getMarketStockList("HK");
+            LOG_INFO("Loaded " + std::to_string(watch_list_.size()) + " stocks for scanning");
+        }
+    }
     
     while (running_) {
         try {
-            scanOnce();
+            if (isInTradingTime()) {
+                scanOnce();
+                
+                // 根据时段选择扫描间隔
+                int interval_ms = isInOpeningPeriod() ? 
+                    OPENING_SCAN_INTERVAL_MS : NORMAL_SCAN_INTERVAL_MS;
+                
+                // 分次等待，以便快速响应stop()
+                auto end_time = std::chrono::steady_clock::now() + 
+                               std::chrono::milliseconds(interval_ms);
+                while (running_ && std::chrono::steady_clock::now() < end_time) {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                }
+            } else {
+                // 非交易时段，低频检查
+                std::this_thread::sleep_for(std::chrono::milliseconds(NON_TRADING_SCAN_INTERVAL_MS));
+            }
+            
         } catch (const std::exception& e) {
-            std::stringstream ss;
-            ss << "Scan error: " << e.what();
-            LOG_ERROR(ss.str());
-        }
-        
-        // 等待下一次扫描
-        auto next_scan_time = std::chrono::steady_clock::now() + scan_interval;
-        while (running_ && std::chrono::steady_clock::now() < next_scan_time) {
-            std::this_thread::sleep_for(std::chrono::seconds(1));
+            LOG_ERROR("Scan loop error: " + std::string(e.what()));
+            std::this_thread::sleep_for(std::chrono::seconds(10));
         }
     }
 }
 
 void MarketScanner::scanOnce() {
+    std::lock_guard<std::mutex> lock(watch_list_mutex_);
+    
+    if (watch_list_.empty()) {
+        LOG_WARNING("Watch list is empty, skipping scan");
+        return;
+    }
+    
     LOG_INFO("Starting market scan...");
     
     auto results = performScan();
@@ -86,9 +140,16 @@ void MarketScanner::scanOnce() {
         filtered_results.resize(10);
     }
     
-    std::stringstream ss;
-    ss << "Scan completed: found " << filtered_results.size() << " qualified stocks";
-    LOG_INFO(ss.str());
+    // 更新合格股票列表
+    {
+        std::lock_guard<std::mutex> lock(qualified_stocks_mutex_);
+        qualified_stocks_.clear();
+        for (const auto& result : filtered_results) {
+            qualified_stocks_.push_back(result.symbol);
+        }
+    }
+    
+    LOG_INFO("Scan completed: found " + std::to_string(filtered_results.size()) + " qualified stocks");
     
     // 将结果传递给策略管理器
     if (!filtered_results.empty()) {
@@ -97,51 +158,99 @@ void MarketScanner::scanOnce() {
 }
 
 std::vector<ScanResult> MarketScanner::performScan() {
-    std::vector<ScanResult> results;
+    std::vector<ScanResult> all_results;
     
-    // TODO: 这里需要调用Futu API获取市场数据
-    // 示例代码结构：
-    /*
-    FTDC_Trader_API* api = FTDC_Trader_API::getInstance();
+    // 分批获取数据
+    all_results = batchFetchMarketData(watch_list_);
     
-    // 获取港股列表
-    std::vector<std::string> stock_list;
-    api->getStockList("HK", stock_list);
-    
-    // 获取每只股票的行情数据
-    for (const auto& symbol : stock_list) {
-        ScanResult result;
-        result.symbol = symbol;
-        
-        // 获取快照数据
-        api->getSnapshot(symbol, result);
-        
-        // 获取历史数据计算指标
-        std::vector<KLine> klines;
-        api->getHistoryKLine(symbol, "K_5M", 100, klines);
-        
-        // 计算评分
-        result.score = calculateScore(result);
-        
-        results.push_back(result);
-    }
-    */
-    
-    // 模拟数据用于测试
-    ScanResult dummy;
-    dummy.symbol = "HK.00700";
-    dummy.stock_name = "腾讯控股";
-    dummy.price = 350.0;
-    dummy.change_ratio = 0.025;  // 2.5%涨幅
-    dummy.volume = 10000000;
-    dummy.turnover_rate = 0.05;
-    dummy.score = calculateScore(dummy);
-    results.push_back(dummy);
-    
-    return results;
+    return all_results;
 }
 
-bool MarketScanner::meetsSelectionCriteria(const ScanResult& result) {
+std::vector<ScanResult> MarketScanner::batchFetchMarketData(const std::vector<std::string>& symbols) {
+    std::vector<ScanResult> all_results;
+    
+    if (!exchange_) {
+        LOG_ERROR("Exchange not set");
+        return all_results;
+    }
+    
+    // 分批获取数据
+    for (size_t i = 0; i < symbols.size(); i += BATCH_SIZE) {
+        if (!running_) {
+            break;
+        }
+        
+        size_t end_idx = std::min(i + BATCH_SIZE, symbols.size());
+        std::vector<std::string> batch(symbols.begin() + i, symbols.begin() + end_idx);
+        
+        try {
+            // 调用交易所的批量快照接口
+            auto snapshots = exchange_->getBatchSnapshots(batch);
+            
+            // 转换为ScanResult并计算评分
+            for (const auto& pair : snapshots) {
+                ScanResult result = convertSnapshotToScanResult(pair.second);
+                result.score = calculateScore(result);
+                all_results.push_back(result);
+            }
+            
+            // 批次间隔，避免过快请求
+            std::this_thread::sleep_for(std::chrono::milliseconds(300));
+            
+        } catch (const std::exception& e) {
+            LOG_ERROR("Failed to fetch batch [" + std::to_string(i) + ", " + std::to_string(end_idx) + "): " + std::string(e.what()));
+        }
+    }
+    
+    return all_results;
+}
+
+ScanResult MarketScanner::convertSnapshotToScanResult(const Snapshot& snapshot) const {
+    ScanResult result;
+    result.symbol = snapshot.symbol;
+    result.stock_name = snapshot.name;
+    result.price = snapshot.last_price;
+    result.change_ratio = snapshot.price_change/snapshot.last_price;
+    result.volume = snapshot.volume;
+    result.turnover_rate = snapshot.turnover_rate;
+    return result;
+}
+
+std::pair<int, int> MarketScanner::getCurrentTime() const {
+    auto now = std::chrono::system_clock::now();
+    auto time_t = std::chrono::system_clock::to_time_t(now);
+    auto tm = *std::localtime(&time_t);
+    return {tm.tm_hour, tm.tm_min};
+}
+
+bool MarketScanner::isInTradingTime() const {
+    auto time_pair = getCurrentTime();
+    int hour = time_pair.first;
+    int minute = time_pair.second;
+    int current_min = hour * 60 + minute;
+    
+    // 香港股市：9:30-12:00（上午）, 13:00-16:00（下午）
+    int morning_open = 9 * 60 + 30;    // 9:30
+    int morning_close = 12 * 60;       // 12:00
+    int afternoon_open = 13 * 60;      // 13:00
+    int afternoon_close = 16 * 60;     // 16:00
+    
+    bool is_morning = current_min >= morning_open && current_min <= morning_close;
+    bool is_afternoon = current_min >= afternoon_open && current_min <= afternoon_close;
+    
+    return is_morning || is_afternoon;
+}
+
+bool MarketScanner::isInOpeningPeriod() const {
+    auto time_pair = getCurrentTime();
+    int hour = time_pair.first;
+    int minute = time_pair.second;
+    
+    // 开盘后30分钟内（9:30-10:00）为关键追涨时段
+    return (hour == 9 && minute >= 30) || (hour == 10 && minute < 60);
+}
+
+bool MarketScanner::meetsSelectionCriteria(const ScanResult& result) const {
     // 筛选条件：追涨杀跌策略
     
     // 1. 涨幅在1%到8%之间（强势但不是极端）
@@ -162,7 +271,7 @@ bool MarketScanner::meetsSelectionCriteria(const ScanResult& result) {
     return true;
 }
 
-double MarketScanner::calculateScore(const ScanResult& result) {
+double MarketScanner::calculateScore(const ScanResult& result) const {
     // 综合评分算法
     double score = 0.0;
     

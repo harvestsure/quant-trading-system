@@ -38,7 +38,8 @@ public:
     bool disconnect() override;
     bool isConnected() const override;
     ExchangeType getType() const override { return ExchangeType::FUTU; }
-    std::string getName() const override { return "Futu Securities"; }
+    std::string getName() const override { return "futu"; }
+    std::string getDisplayName() const override { return "Futu Securities"; }
     
     // ========== 账户相关 ==========
     AccountInfo getAccountInfo() override;

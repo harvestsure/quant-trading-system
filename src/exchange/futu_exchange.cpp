@@ -831,7 +831,7 @@ std::vector<KlineData> FutuExchange::getHistoryKLine(
                         
                         KlineData kline;
                         kline.symbol = symbol;
-                        kline.exchange = "Futu";
+                        kline.exchange = getName();
                         kline.datetime = kl.time();
                         kline.interval = kline_type;
                         kline.open_price = kl.openprice();
@@ -900,7 +900,8 @@ Snapshot FutuExchange::getSnapshot(const std::string& symbol) {
                         const auto& basic = snap.basic();
                         
                         snapshot.symbol = symbol;
-                        snapshot.exchange = "Futu";
+                        snapshot.name = basic.name();
+                        snapshot.exchange = getName();
                         snapshot.timestamp = std::chrono::system_clock::now().time_since_epoch().count() / 1000000;
                         snapshot.last_price = basic.curprice();
                         snapshot.open_price = basic.openprice();
@@ -1016,7 +1017,8 @@ std::map<std::string, Snapshot> FutuExchange::getBatchSnapshots(
                         
                         Snapshot snapshot;
                         snapshot.symbol = sec.code();
-                        snapshot.exchange = "Futu";
+                        snapshot.name = basic.name();
+                        snapshot.exchange = getName();
                         snapshot.timestamp = std::chrono::system_clock::now().time_since_epoch().count() / 1000000;
                         snapshot.last_price = basic.curprice();
                         snapshot.open_price = basic.openprice();

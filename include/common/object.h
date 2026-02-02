@@ -172,6 +172,7 @@ struct LogData {
 // 市场快照数据（用于市场扫描）
 struct Snapshot {
     std::string symbol;           // 股票代码
+    std::string name;             // 股票名称
     std::string exchange;         // 交易所
     int64_t timestamp;            // 时间戳（毫秒）
     std::string datetime;         // 时间字符串

@@ -60,37 +60,21 @@ bool ConfigManager::loadFromText(const std::string& text_file) {
 }
 
 void ConfigManager::parseJsonConfig(const json& j) {
-    // 解析交易所配置
-    if (j.contains("exchange")) {
-        const auto& exchange = j["exchange"];
-        config_.exchange.type = exchange.value("type", "FUTU");
-        config_.exchange.is_simulation = exchange.value("is_simulation", true);
-    }
-    
-    // 解析Futu配置
-    if (j.contains("futu")) {
-        const auto& futu = j["futu"];
-        config_.futu.host = futu.value("host", "127.0.0.1");
-        config_.futu.port = futu.value("port", 11111);
-        config_.futu.unlock_password = futu.value("unlock_password", "");
-        config_.futu.market = futu.value("market", "HK");
-    }
-    
-    // 解析IBKR配置
-    if (j.contains("ibkr")) {
-        const auto& ibkr = j["ibkr"];
-        config_.ibkr.host = ibkr.value("host", "127.0.0.1");
-        config_.ibkr.port = ibkr.value("port", 7496);
-        config_.ibkr.client_id = ibkr.value("client_id", 0);
-        config_.ibkr.account = ibkr.value("account", "");
-    }
-    
-    // 解析Binance配置
-    if (j.contains("binance")) {
-        const auto& binance = j["binance"];
-        config_.binance.api_key = binance.value("api_key", "");
-        config_.binance.api_secret = binance.value("api_secret", "");
-        config_.binance.testnet = binance.value("testnet", true);
+    // 解析多交易所配置
+    if (j.contains("exchange") && j["exchange"].is_object()) {
+		const auto& exch_array = j["exchange"];
+        for (auto& [key, exch] : exch_array.items()) {
+
+            ExchangeInstanceConfig instance;
+            instance.name = key;
+            instance.is_enabled = exch.value("is_enabled", false);
+            instance.is_simulation = exch.value("is_simulation", true);
+            instance.params = exch.value("params", json::object());
+
+            if (!instance.name.empty()) {
+                config_.exchanges.push_back(instance);
+            }
+        }
     }
     
     // 解析交易参数
@@ -142,7 +126,7 @@ void ConfigManager::parseJsonConfig(const json& j) {
         config_.logging.level = logging.value("level", "INFO");
         config_.logging.console = logging.value("console", true);
         config_.logging.file = logging.value("file", true);
-        config_.logging.file_path = logging.value("file_path", "logs/trading.log");
+        config_.logging.file_dir = logging.value("file_dir", "logs");
     }
 }
 
@@ -156,35 +140,25 @@ void ConfigManager::parseConfigLine(const std::string& line) {
         key.erase(key.find_last_not_of(" \t") + 1);
         value.erase(0, value.find_first_not_of(" \t"));
         value.erase(value.find_last_not_of(" \t") + 1);
-        
-        // 解析配置项 (向后兼容旧的文本格式)
-        if (key == "exchange_type") {
-            config_.exchange.type = value;
-        } else if (key == "is_simulation") {
-            config_.exchange.is_simulation = (value == "true" || value == "1");
-        } else if (key == "futu_host") {
-            config_.futu.host = value;
-        } else if (key == "futu_port") {
-            config_.futu.port = std::stoi(value);
-        } else if (key == "unlock_password") {
-            config_.futu.unlock_password = value;
-        } else if (key == "market") {
-            config_.futu.market = value;
-        } else if (key == "max_position_size") {
-            config_.trading.max_position_size = std::stod(value);
-        } else if (key == "single_stock_max_ratio") {
-            config_.trading.single_stock_max_ratio = std::stod(value);
-        } else if (key == "max_positions") {
-            config_.trading.max_positions = std::stoi(value);
-        } else if (key == "scan_interval_minutes") {
-            config_.scanner.interval_minutes = std::stoi(value);
-        } else if (key == "stop_loss_ratio") {
-            config_.risk.stop_loss_ratio = std::stod(value);
-        } else if (key == "take_profit_ratio") {
-            config_.risk.take_profit_ratio = std::stod(value);
-        } else if (key == "max_daily_loss") {
-            config_.risk.max_daily_loss = std::stod(value);
+    }
+}
+
+std::vector<ExchangeInstanceConfig> ConfigManager::getEnabledExchanges() const {
+    std::vector<ExchangeInstanceConfig> enabled;
+    for (const auto& exch : config_.exchanges) {
+        if (exch.is_enabled) {
+            enabled.push_back(exch);
         }
     }
+    return enabled;
+}
+
+const ExchangeInstanceConfig* ConfigManager::getExchange(const std::string& name) const {
+    for (const auto& exch : config_.exchanges) {
+        if (exch.name == name && exch.is_enabled) {
+            return &exch;
+        }
+    }
+    return nullptr;
 }
 

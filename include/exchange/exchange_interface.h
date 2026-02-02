@@ -51,6 +51,7 @@ public:
     virtual bool isConnected() const = 0;
     virtual ExchangeType getType() const = 0;
     virtual std::string getName() const = 0;
+    virtual std::string getDisplayName() const = 0;
     
     // ========== 账户相关 ==========
     virtual AccountInfo getAccountInfo() = 0;

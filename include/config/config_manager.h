@@ -10,33 +10,12 @@
 
  
 
-// 交易所配置
-struct ExchangeConfig {
-    std::string type = "FUTU";
+// 单个交易所配置
+struct ExchangeInstanceConfig {
+    std::string name;  // 交易所标识: futu, ibkr, binance
+    bool is_enabled = true;
     bool is_simulation = true;
-};
-
-// Futu配置
-struct FutuConnectionConfig {
-    std::string host = "127.0.0.1";
-    int port = 11111;
-    std::string unlock_password = "";
-    std::string market = "HK";
-};
-
-// IBKR配置
-struct IBKRConnectionConfig {
-    std::string host = "127.0.0.1";
-    int port = 7496;
-    int client_id = 0;
-    std::string account = "";
-};
-
-// Binance配置
-struct BinanceConnectionConfig {
-    std::string api_key = "";
-    std::string api_secret = "";
-    bool testnet = true;
+    nlohmann::json params;  // 交易所特定参数，由交易所自己解析处理
 };
 
 // 交易参数
@@ -84,15 +63,12 @@ struct LoggingConfig {
     std::string level = "INFO";
     bool console = true;
     bool file = true;
-    std::string file_path = "logs/trading.log";
+    std::string file_dir = "logs/";
 };
 
 // 完整配置结构
 struct TradingConfig {
-    ExchangeConfig exchange;
-    FutuConnectionConfig futu;
-    IBKRConnectionConfig ibkr;
-    BinanceConnectionConfig binance;
+    std::vector<ExchangeInstanceConfig> exchanges;  // 多交易所配置列表
     TradingParams trading;
     ScannerParams scanner;
     RiskParams risk;
@@ -111,9 +87,11 @@ public:
     
     const TradingConfig& getConfig() const { return config_; }
     
-    // 便捷访问方法
-    std::string getExchangeType() const { return config_.exchange.type; }
-    bool isSimulation() const { return config_.exchange.is_simulation; }
+    // 便捷访问方法 - 多交易所支持
+    const std::vector<ExchangeInstanceConfig>& getExchanges() const { return config_.exchanges; }
+    std::vector<ExchangeInstanceConfig> getEnabledExchanges() const;
+    const ExchangeInstanceConfig* getExchange(const std::string& name) const;
+    bool isSimulation() const { return config_.exchanges.empty() ? true : config_.exchanges[0].is_simulation; }
     
     // 禁止拷贝
     ConfigManager(const ConfigManager&) = delete;
