@@ -1,4 +1,5 @@
 #include "utils/logger.h"
+#include "utils/stringsUtils.h"
 #include <iostream>
 #include <filesystem>
 #include <chrono>
@@ -53,7 +54,7 @@ void Logger::log(LogLevel level, const std::string& message) {
     std::string log_entry = getCurrentTime() + " [" + levelToString(level) + "] " + message;
     
     // 输出到控制台
-    std::cout << log_entry << std::endl;
+    PrintToConsole(log_entry);
     
     // 输出到文件
     if (log_file_.is_open()) {

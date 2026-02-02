@@ -911,8 +911,12 @@ Snapshot FutuExchange::getSnapshot(const std::string& symbol) {
                         snapshot.volume = basic.volume();
                         snapshot.turnover = basic.turnover();
                         snapshot.turnover_rate = basic.turnoverrate();
-                        snapshot.price_change = basic.has_pricespread() ? basic.pricespread() : 0.0;
+                        snapshot.price_change = basic.has_amplitude() ? basic.amplitude() : 0.0;
                         snapshot.price_change_abs = 0.0;  // 富途API没有提供绝对变化值
+                        snapshot.ask_price_1 = basic.has_askprice() ? basic.askprice() : 0.0;
+                        snapshot.bid_price_1 = basic.has_bidprice() ? basic.bidprice() : 0.0;
+                        snapshot.ask_volume_1 = basic.has_askvol() ? basic.askvol() : 0.0;
+                        snapshot.bid_volume_1 = basic.has_bidvol() ? basic.bidvol() : 0.0;
                     }
                 }
                 spi_->snapshot_responses_.erase(it);
@@ -1087,9 +1091,13 @@ std::map<std::string, Snapshot> FutuExchange::getBatchSnapshots(
                         snapshot.volume = basic.volume();
                         snapshot.turnover = basic.turnover();
                         snapshot.turnover_rate = basic.turnoverrate();
-                        snapshot.price_change = basic.has_pricespread() ? basic.pricespread() : 0.0;
+                        snapshot.price_change = basic.has_amplitude() ? basic.amplitude() : 0.0;
                         snapshot.price_change_abs = 0.0;  // 富途API没有提供绝对变化值
-                        
+                        snapshot.ask_price_1 = basic.has_askprice() ? basic.askprice() : 0.0;
+                        snapshot.bid_price_1 = basic.has_bidprice() ? basic.bidprice() : 0.0;
+                        snapshot.ask_volume_1 = basic.has_askvol() ? basic.askvol() : 0.0;
+                        snapshot.bid_volume_1 = basic.has_bidvol() ? basic.bidvol() : 0.0;
+
                         snapshots[sec.code()] = snapshot;
                     }
                 }

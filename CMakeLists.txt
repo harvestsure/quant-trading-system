@@ -67,6 +67,7 @@ set(CORE_SOURCES
     src/exchange/exchange_manager.cpp
     src/event/event_engine.cpp
     src/utils/logger.cpp
+    src/utils/stringsUtils.cpp
 )
 
 # 根据启用的交易所添加对应的源文件

@@ -8,7 +8,6 @@
 #include <iomanip>
 #include <filesystem>
 
- 
 
 enum class LogLevel {
     DEBUG,
@@ -45,5 +44,3 @@ private:
 #define LOG_INFO(msg) Logger::getInstance().log(LogLevel::INFO, msg)
 #define LOG_WARNING(msg) Logger::getInstance().log(LogLevel::WARNING, msg)
 #define LOG_ERROR(msg) Logger::getInstance().log(LogLevel::ERROR, msg)
-
- 
