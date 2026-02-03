@@ -105,12 +105,18 @@ if(ENABLE_FUTU)
             message(FATAL_ERROR "FTAPI precompiled libraries not found at ${FTAPI_BIN_DIR}. Please verify FTAPI_HOME is correct.")
         endif()
         
+        # 设置 FTAPI 头文件路径（必须，所有操作系统都需要）
+        set(FUTU_INCLUDE_DIRS "${FTAPI_HOME}/Include")
+        
         # 查找预编译库
         find_library(FTAPI_LIB FTAPI PATHS "${FTAPI_BIN_DIR}" REQUIRED)
         find_library(FTAPI_CHANNEL_LIB FTAPIChannel PATHS "${FTAPI_BIN_DIR}" REQUIRED)
         find_library(PROTOBUF_LIB protobuf PATHS "${FTAPI_BIN_DIR}" REQUIRED)
         
         set(FUTU_LIBRARIES ${FTAPI_LIB} ${FTAPI_CHANNEL_LIB} ${PROTOBUF_LIB} pthread)
+        
+        message(STATUS "FTAPI include directory: ${FUTU_INCLUDE_DIRS}")
+        message(STATUS "FTAPI libraries: ${FUTU_LIBRARIES}")
     endif()
 
     message(STATUS "FTAPI integration completed as sub-projects")
