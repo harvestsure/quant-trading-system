@@ -87,8 +87,16 @@ if(ENABLE_FUTU)
         if(APPLE)
             set(TARGET_OS "Mac")
         else()
-            # Linux
+            # Linux - Ubuntu 16.04 预编译库在较新系统上需要兼容性处理
             set(TARGET_OS "Ubuntu16.04")
+            
+            # 添加兼容性编译选项
+            # -no-pie: 禁用 PIE (Position Independent Executable)，与 Ubuntu 16 编译的库兼容
+            # -fno-stack-protector: 禁用栈保护，与旧版库兼容
+            add_compile_options(-no-pie)
+            add_link_options(-no-pie)
+            
+            message(STATUS "Applied Linux compatibility flags for Ubuntu 16 precompiled libraries")
         endif()
         
         set(FTAPI_BIN_DIR "${FTAPI_HOME}/Bin/${TARGET_OS}")
