@@ -103,7 +103,11 @@ if(ENABLE_FUTU)
             # Linux - Ubuntu 16.04 预编译库在较新系统上需要兼容性处理
             set(TARGET_OS "Ubuntu16.04")
             
-            message(STATUS "Applied Linux compatibility flags for Ubuntu 16 precompiled libraries")
+            # FTAPI 预编译库是非 PIE 的，需要全局禁用 PIE
+            add_compile_options(-no-pie)
+            add_link_options(-no-pie)
+            
+            message(STATUS "Applied Linux compatibility flags for Ubuntu 16 precompiled libraries (non-PIE)")
         endif()
         
         set(FTAPI_BIN_DIR "${FTAPI_HOME}/Bin/${TARGET_OS}")
