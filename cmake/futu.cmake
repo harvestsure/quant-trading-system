@@ -102,6 +102,9 @@ if(ENABLE_FUTU)
         else()
             # Linux - Ubuntu 16.04 预编译库在较新系统上需要兼容性处理
             set(TARGET_OS "Ubuntu16.04")
+
+            add_compile_options(-no-pie)
+            add_link_options(-no-pie)
             
             message(STATUS "Applied Linux compatibility flags for Ubuntu 16 precompiled libraries")
         endif()
