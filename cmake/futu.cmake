@@ -163,14 +163,17 @@ if(ENABLE_FUTU)
             message(STATUS "FUTU wrapper: using macOS 10.13 compatibility (libc++ unified)")
         else()
             # Linux: 应用兼容性编译选项仅针对这个库
+            # FTAPI 预编译库是非 PIE 的，需要禁用 PIE 编译和链接
             target_compile_options(futu_wrapper PRIVATE
+                -fno-PIE
                 -no-pie
                 -fno-stack-protector
             )
             target_link_options(futu_wrapper PRIVATE
+                -fno-PIE
                 -no-pie
             )
-            message(STATUS "FUTU wrapper: using Ubuntu 16.04 compatibility flags")
+            message(STATUS "FUTU wrapper: using Ubuntu 16.04 compatibility flags (non-PIE)")
         endif()
         
         # 链接到 FTAPI 库
