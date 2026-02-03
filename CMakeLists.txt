@@ -37,6 +37,20 @@ if(ENABLE_FUTU)
     link_directories(${FUTU_LINK_DIRECTORIES})
 endif()
 
+# ========== 全局编译选项 ==========
+# 为了避免 ABI 不兼容，整个项目统一使用 libc++
+# 但 FUTU 模块使用较低的 macOS 版本要求以兼容 FTAPI 的编译环境
+if(APPLE)
+    # 全局：使用 libc++ 标准库（所有模块统一）
+    add_compile_options(
+        "-stdlib=libc++"
+    )
+    add_link_options(
+        "-stdlib=libc++"
+    )
+    message(STATUS "Global: using libc++ standard library for all modules")
+endif()
+
 if(ENABLE_IBKR)
     message(STATUS "IBKR Exchange: ENABLED")
     add_definitions(-DENABLE_IBKR)

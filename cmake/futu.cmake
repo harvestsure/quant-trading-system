@@ -57,15 +57,23 @@ if(ENABLE_FUTU)
             "${FUTU_INCLUDE_DIRS}/*.cc"
         )
         
-        add_library(futu_api STATIC ${FTAPI_CORE_SOURCES})
+        add_library(ftapi_compat STATIC ${FTAPI_CORE_SOURCES})
         # 设置输出名称为 FTAPI，以匹配头文件中的 #pragma comment(lib, "FTAPI.lib")
-        set_target_properties(futu_api PROPERTIES OUTPUT_NAME "FTAPI")
-        target_include_directories(futu_api PUBLIC ${FUTU_INCLUDE_DIRS})
+        set_target_properties(ftapi_compat PROPERTIES OUTPUT_NAME "FTAPI")
+        target_include_directories(ftapi_compat PUBLIC ${FUTU_INCLUDE_DIRS})
         
         # 链接到刚才编译生成的 libprotobuf 目标
-        # 使用 PUBLIC 确保依赖 futu_api 的主工程也能自动获得 libprotobuf 的包含路径和链接信息
+        # 使用 PUBLIC 确保依赖 ftapi_compat 的主工程也能自动获得 libprotobuf 的包含路径和链接信息
         # CMake 会根据目标属性自动在 Debug 模式下链接 libprotobufd.lib，Release 模式下链接 libprotobuf.lib
-        target_link_libraries(futu_api PUBLIC libprotobuf)
+        target_link_libraries(ftapi_compat PUBLIC libprotobuf)
+        
+        # 3. 创建 FUTU wrapper 库（分开编译）
+        add_library(futu_wrapper STATIC ${FUTU_SOURCES})
+        target_include_directories(futu_wrapper 
+            PRIVATE ${FUTU_INCLUDE_DIRS}
+            PRIVATE ${CMAKE_SOURCE_DIR}/include
+        )
+        target_link_libraries(futu_wrapper PRIVATE ftapi_compat libprotobuf)
         
         if(CMAKE_SIZEOF_VOID_P EQUAL 8)
             set(FT_ARCH_DIR "Windows-x64")
@@ -80,42 +88,103 @@ if(ENABLE_FUTU)
         endif()
 
         find_library(FTAPI_CHANNEL_LIB FTAPIChannel PATHS ${FTAPI_CH_LIB_PATH} REQUIRED)
-        set(FUTU_LIBRARIES futu_api ${FTAPI_CHANNEL_LIB} Ws2_32 Rpcrt4)
+        set(FUTU_LIBRARIES futu_wrapper ftapi_compat ${FTAPI_CHANNEL_LIB} Ws2_32 Rpcrt4)
+        
+        message(STATUS "FUTU wrapper library created (separate compilation)")
+        message(STATUS "FTAPI integration completed with differentiated compilation")
     else()
         # Linux/macOS: 使用预编译库
+        # 关键：为了避免编译选项冲突，将 FUTU wrapper 代码单独编译成静态库
+        # FUTU wrapper 使用旧的编译选项（兼容 FTAPI 的老平台），主程序使用 C++17/C++20
+        
         if(APPLE)
             set(TARGET_OS "Mac")
         else()
             # Linux - Ubuntu 16.04 预编译库在较新系统上需要兼容性处理
             set(TARGET_OS "Ubuntu16.04")
             
-            # 添加兼容性编译选项
-            # -no-pie: 禁用 PIE (Position Independent Executable)，与 Ubuntu 16 编译的库兼容
-            # -fno-stack-protector: 禁用栈保护，与旧版库兼容
-            add_compile_options(-no-pie)
-            add_link_options(-no-pie)
-            
             message(STATUS "Applied Linux compatibility flags for Ubuntu 16 precompiled libraries")
         endif()
         
         set(FTAPI_BIN_DIR "${FTAPI_HOME}/Bin/${TARGET_OS}")
-        
-        # 检查预编译库是否存在
-        if(NOT EXISTS "${FTAPI_BIN_DIR}")
-            message(FATAL_ERROR "FTAPI precompiled libraries not found at ${FTAPI_BIN_DIR}. Please verify FTAPI_HOME is correct.")
+
+        # macOS: FTAPI 的预编译库按配置放在 Debug/Release 子目录中
+        if(APPLE)
+            set(FTAPI_BIN_DIR_DEBUG "${FTAPI_BIN_DIR}/Debug")
+            set(FTAPI_BIN_DIR_RELEASE "${FTAPI_BIN_DIR}/Release")
+
+            if(NOT EXISTS "${FTAPI_BIN_DIR_DEBUG}" AND NOT EXISTS "${FTAPI_BIN_DIR_RELEASE}")
+                message(FATAL_ERROR "FTAPI precompiled libraries not found at ${FTAPI_BIN_DIR_DEBUG} or ${FTAPI_BIN_DIR_RELEASE}. Please verify FTAPI_HOME is correct.")
+            endif()
+
+            # 优先使用与当前构建类型匹配的目录，但在查找时提供两个目录以提高健壮性
+            set(FTAPI_SEARCH_DIRS "${FTAPI_BIN_DIR_DEBUG}" "${FTAPI_BIN_DIR_RELEASE}")
+        else()
+            # Linux: 预编译库直接放在 FTAPI_BIN_DIR
+            if(NOT EXISTS "${FTAPI_BIN_DIR}")
+                message(FATAL_ERROR "FTAPI precompiled libraries not found at ${FTAPI_BIN_DIR}. Please verify FTAPI_HOME is correct.")
+            endif()
+
+            set(FTAPI_SEARCH_DIRS "${FTAPI_BIN_DIR}")
         endif()
-        
+
         # 设置 FTAPI 头文件路径（必须，所有操作系统都需要）
         set(FUTU_INCLUDE_DIRS "${FTAPI_HOME}/Include")
+
+        # 查找预编译库（macOS 会在 Debug/Release 两个子目录中查找）
+        find_library(FTAPI_LIB FTAPI PATHS ${FTAPI_SEARCH_DIRS} REQUIRED)
+        find_library(FTAPI_CHANNEL_LIB FTAPIChannel PATHS ${FTAPI_SEARCH_DIRS} REQUIRED)
+        find_library(PROTOBUF_LIB protobuf PATHS ${FTAPI_SEARCH_DIRS} REQUIRED)
+
+        # ========== 创建 FUTU wrapper 静态库（分开编译） ==========
+        # 这个库包含 futu_exchange.cpp 和 futu_spi.cpp，使用与 FTAPI 兼容的编译选项
+        # 注：不编译 .pb.cc，因为 FTAPI 预编译库已经包含了 protobuf 的完整实现
         
-        # 查找预编译库
-        find_library(FTAPI_LIB FTAPI PATHS "${FTAPI_BIN_DIR}" REQUIRED)
-        find_library(FTAPI_CHANNEL_LIB FTAPIChannel PATHS "${FTAPI_BIN_DIR}" REQUIRED)
-        find_library(PROTOBUF_LIB protobuf PATHS "${FTAPI_BIN_DIR}" REQUIRED)
+        add_library(futu_wrapper STATIC ${FUTU_SOURCES})
         
-        set(FUTU_LIBRARIES ${FTAPI_LIB} ${FTAPI_CHANNEL_LIB} ${PROTOBUF_LIB} pthread)
+        # 设置包含目录
+        target_include_directories(futu_wrapper 
+            PRIVATE ${FUTU_INCLUDE_DIRS}
+            PRIVATE ${CMAKE_SOURCE_DIR}/include
+        )
+        
+        # *** 关键：仅为这个库应用旧的编译选项，不影响主程序 ***
+        # 这样主程序可以使用 C++17/C++20，而 FUTU wrapper 使用兼容老平台的选项
+        if(APPLE)
+            # macOS: 使用最低系统版本以兼容 FTAPI 的编译环境
+            # 注：标准库已在全局 CMakeLists.txt 中统一设置为 libc++，避免 ABI 不兼容
+            target_compile_options(futu_wrapper PRIVATE
+                "-mmacosx-version-min=10.13"
+                "-fPIC"
+            )
+            target_link_options(futu_wrapper PRIVATE
+                "-mmacosx-version-min=10.13"
+            )
+            message(STATUS "FUTU wrapper: using macOS 10.13 compatibility (libc++ unified)")
+        else()
+            # Linux: 应用兼容性编译选项仅针对这个库
+            target_compile_options(futu_wrapper PRIVATE
+                -no-pie
+                -fno-stack-protector
+            )
+            target_link_options(futu_wrapper PRIVATE
+                -no-pie
+            )
+            message(STATUS "FUTU wrapper: using Ubuntu 16.04 compatibility flags")
+        endif()
+        
+        # 链接到 FTAPI 库
+        target_link_libraries(futu_wrapper PRIVATE 
+            ${FTAPI_LIB} 
+            ${FTAPI_CHANNEL_LIB} 
+            ${PROTOBUF_LIB}
+        )
+        
+        # 将 FUTU wrapper 库和原始 FTAPI 库都返回给主程序链接
+        set(FUTU_LIBRARIES futu_wrapper ${FTAPI_LIB} ${FTAPI_CHANNEL_LIB} ${PROTOBUF_LIB})
         
         message(STATUS "FTAPI include directory: ${FUTU_INCLUDE_DIRS}")
+        message(STATUS "FUTU wrapper library created (separate compilation)")
         message(STATUS "FTAPI libraries: ${FUTU_LIBRARIES}")
     endif()
 
