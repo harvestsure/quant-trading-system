@@ -66,8 +66,8 @@ if(ENABLE_FUTU)
         src/exchange/futu_spi.cpp
     )
     
-    # 根据架构物理定位 FTAPIChannel 库 (闭源库，无法从源码编译)
     if(WIN32)
+        # Windows: 编译 FTAPI 和 Protobuf 源码
         if(CMAKE_SIZEOF_VOID_P EQUAL 8)
             set(FT_ARCH_DIR "Windows-x64")
         else()
@@ -83,20 +83,27 @@ if(ENABLE_FUTU)
         find_library(FTAPI_CHANNEL_LIB FTAPIChannel PATHS ${FTAPI_CH_LIB_PATH} REQUIRED)
         set(FUTU_LIBRARIES futu_api ${FTAPI_CHANNEL_LIB} Ws2_32 Rpcrt4)
     else()
-        # macOS/Linux: 根据构建类型定位 FTAPIChannel 库
+        # Linux/macOS: 使用预编译库
         if(APPLE)
-            if(CMAKE_BUILD_TYPE MATCHES Debug)
-                set(FTAPI_CH_LIB_PATH "${FTAPI_HOME}/Bin/Mac/Debug")
-            else()
-                set(FTAPI_CH_LIB_PATH "${FTAPI_HOME}/Bin/Mac/Release")
-            endif()
+            set(TARGET_OS "Mac")
         else()
             # Linux
-            set(FTAPI_CH_LIB_PATH "${FTAPI_HOME}/Bin/Centos7")
+            set(TARGET_OS "Ubuntu16.04")
         endif()
         
-        find_library(FTAPI_CHANNEL_LIB FTAPIChannel PATHS ${FTAPI_CH_LIB_PATH} REQUIRED)
-        set(FUTU_LIBRARIES futu_api ${FTAPI_CHANNEL_LIB})
+        set(FTAPI_BIN_DIR "${FTAPI_HOME}/Bin/${TARGET_OS}")
+        
+        # 检查预编译库是否存在
+        if(NOT EXISTS "${FTAPI_BIN_DIR}")
+            message(FATAL_ERROR "FTAPI precompiled libraries not found at ${FTAPI_BIN_DIR}. Please verify FTAPI_HOME is correct.")
+        endif()
+        
+        # 查找预编译库
+        find_library(FTAPI_LIB FTAPI PATHS "${FTAPI_BIN_DIR}" REQUIRED)
+        find_library(FTAPI_CHANNEL_LIB FTAPIChannel PATHS "${FTAPI_BIN_DIR}" REQUIRED)
+        find_library(PROTOBUF_LIB protobuf PATHS "${FTAPI_BIN_DIR}" REQUIRED)
+        
+        set(FUTU_LIBRARIES ${FTAPI_LIB} ${FTAPI_CHANNEL_LIB} ${PROTOBUF_LIB} pthread)
     endif()
 
     message(STATUS "FTAPI integration completed as sub-projects")
