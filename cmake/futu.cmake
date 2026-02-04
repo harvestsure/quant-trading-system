@@ -157,13 +157,14 @@ if(ENABLE_FUTU)
         find_library(PROTOBUF_LIB protobuf PATHS ${FTAPI_SEARCH_DIRS} REQUIRED)
         find_library(ZLIB_LIB z)  # 系统自带的 zlib
 
-        # ========== 创建 FUTU exchange 动态库（分开编译） ==========
+        # ========== 创建 FUTU exchange 库（分开编译） ==========
         # 这个库包含 futu_exchange.cpp 和 futu_spi.cpp，使用与 FTAPI 兼容的编译选项
-        # 编译为动态库以支持未来的动态加载
+        # 注意：在 Linux 上，FTAPI 预编译库是非 PIC 的，不能链接到动态库
+        # 因此在 Linux/macOS 上使用静态库；在 Windows 上使用动态库
         # 必须编译 FTAPI 提供的 .pb.cc 文件以定义 protobuf 类
         
         # 为了避免符号未定义，将项目的基础库源文件也编译到 futu_exchange 中
-        # 这样 Logger 等依赖就会被包含在动态库中
+        # 这样 Logger 等依赖就会被包含在库中
         file(GLOB BASE_LIB_SOURCES
             "${CMAKE_SOURCE_DIR}/src/utils/logger.cpp"
             "${CMAKE_SOURCE_DIR}/src/utils/stringsUtils.cpp"
@@ -174,7 +175,8 @@ if(ENABLE_FUTU)
             "${FUTU_INCLUDE_DIRS}/Proto/*.pb.cc"
         )
         
-        add_library(futu_exchange SHARED ${FUTU_SOURCES} ${BASE_LIB_SOURCES} ${FTAPI_PROTO_SOURCES})
+        # Linux/macOS 上用静态库避免 PIC 问题
+        add_library(futu_exchange STATIC ${FUTU_SOURCES} ${BASE_LIB_SOURCES} ${FTAPI_PROTO_SOURCES})
         
         # 设置包含目录
         target_include_directories(futu_exchange 
@@ -192,22 +194,15 @@ if(ENABLE_FUTU)
             # 注：标准库已在全局 CMakeLists.txt 中统一设置为 libc++，避免 ABI 不兼容
             target_compile_options(futu_exchange PRIVATE
                 "-mmacosx-version-min=10.13"
-                "-fPIC"
             )
             target_link_options(futu_exchange PRIVATE
                 "-mmacosx-version-min=10.13"
-                "-flat_namespace"
-                "-undefined suppress"
             )
-            message(STATUS "FUTU exchange: using macOS 10.13 compatibility (libc++ unified, dynamic library with symbol deferred linking)")
+            message(STATUS "FUTU exchange: using macOS 10.13 compatibility (static library)")
         else()
-            # Linux: 应用兼容性编译选项仅针对这个动态库
-            # FTAPI 预编译库是非 PIE 的，但动态库需要 fPIC
-            target_compile_options(futu_exchange PRIVATE
-                -fPIC
-                -fno-stack-protector
-            )
-            message(STATUS "FUTU exchange: using Ubuntu 16.04 compatibility flags (dynamic library with -fPIC)")
+            # Linux: FTAPI 预编译库是非 PIC 的，所以 futu_exchange 编译为静态库
+            # 不需要添加特殊的编译选项，标准编译即可
+            message(STATUS "FUTU exchange: using Ubuntu 16.04 compatibility flags (static library)")
         endif()
         
         # 链接到 FTAPI 库
@@ -226,22 +221,23 @@ if(ENABLE_FUTU)
                 ${FTAPI_LIB}
                 ${FTAPI_CHANNEL_LIB}
                 ${PROTOBUF_LIB}
-                ${ZLIB_LIB}
             )
         endif()
         
-        # NOTE: futu_exchange 库将独立编译，主进程不链接
-        # 这些库信息保留用于未来需要时的动态加载或直接集成
+        # NOTE: 在 Windows 上，futu_exchange 是动态库（分开编译，不链接到主进程）
+        # 在 Linux/macOS 上，futu_exchange 是静态库（需要链接到主进程避免 PIC 问题）
         set(FUTU_WRAPPER_LIB futu_exchange)
         set(FUTU_DEPENDENCIES ${FTAPI_LIB} ${FTAPI_CHANNEL_LIB} ${PROTOBUF_LIB})
         
-        # FUTU_LIBRARIES 现在为空，主进程不链接
-        set(FUTU_LIBRARIES "")
+        # 在 Linux/macOS 上，静态库需要被主进程链接
+        # FUTU_LIBRARIES 包含主进程需要链接的库
+        set(FUTU_LIBRARIES futu_exchange)
         
         message(STATUS "FTAPI include directory: ${FUTU_INCLUDE_DIRS}")
-        message(STATUS "FUTU exchange library created (separate compilation, not linked to main executable)")
+        message(STATUS "FUTU exchange library created (static library, linked to main executable)")
         message(STATUS "FUTU exchange library: ${FUTU_WRAPPER_LIB}")
         message(STATUS "FUTU dependencies: ${FUTU_DEPENDENCIES}")
+        message(STATUS "FUTU libraries for main: ${FUTU_LIBRARIES}")
     endif()
 
     message(STATUS "FTAPI integration completed as sub-projects")

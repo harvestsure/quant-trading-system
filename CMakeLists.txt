@@ -127,6 +127,11 @@ target_link_libraries(quant-trading-system PRIVATE
     nlohmann_json::nlohmann_json
 )
 
+# Link Futu exchange library if enabled
+if(ENABLE_FUTU)
+    target_link_libraries(quant-trading-system PRIVATE ${FUTU_LIBRARIES})
+endif()
+
 # Link the project base static library into the executable so `main` and
 # all object files are included in the final link.
 target_link_libraries(quant-trading-system PRIVATE project_base_libs)
