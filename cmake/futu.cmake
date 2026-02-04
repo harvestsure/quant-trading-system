@@ -67,14 +67,7 @@ if(ENABLE_FUTU)
         # CMake 会根据目标属性自动在 Debug 模式下链接 libprotobufd.lib，Release 模式下链接 libprotobuf.lib
         target_link_libraries(ftapi_compat PUBLIC libprotobuf)
         
-        # 3. 创建 FUTU exchange 库（分开编译，动态库以支持动态加载）
-        add_library(futu_exchange SHARED ${FUTU_SOURCES})
-        target_include_directories(futu_exchange 
-            PRIVATE ${FUTU_INCLUDE_DIRS}
-            PRIVATE ${CMAKE_SOURCE_DIR}/include
-        )
-        target_link_libraries(futu_exchange PRIVATE ftapi_compat libprotobuf)
-        
+        # 3. 查找 FTAPIChannel DLL 库
         if(CMAKE_SIZEOF_VOID_P EQUAL 8)
             set(FT_ARCH_DIR "Windows-x64")
         else()
@@ -88,6 +81,23 @@ if(ENABLE_FUTU)
         endif()
 
         find_library(FTAPI_CHANNEL_LIB FTAPIChannel PATHS ${FTAPI_CH_LIB_PATH} REQUIRED)
+        
+        # 4. 创建 FUTU exchange 库（分开编译，动态库以支持动态加载）
+        add_library(futu_exchange SHARED ${FUTU_SOURCES})
+        target_include_directories(futu_exchange 
+            PRIVATE ${FUTU_INCLUDE_DIRS}
+            PRIVATE ${CMAKE_SOURCE_DIR}/include
+        )
+        
+        # 链接所有必需的库：ftapi_compat、protobuf、项目基础库、Windows 系统库和 FTAPIChannel DLL
+        target_link_libraries(futu_exchange 
+            PRIVATE ftapi_compat 
+            PRIVATE libprotobuf
+            PRIVATE project_base_libs
+            PRIVATE ${FTAPI_CHANNEL_LIB}
+            PRIVATE Ws2_32
+            PRIVATE Rpcrt4
+        )
         
         # NOTE: futu_exchange 库将独立编译，主进程不链接
         set(FUTU_WRAPPER_LIB futu_exchange)

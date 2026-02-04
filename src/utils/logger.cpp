@@ -86,10 +86,10 @@ std::string Logger::getCurrentTime() {
 
 std::string Logger::levelToString(LogLevel level) {
     switch (level) {
-        case LogLevel::DEBUG: return "DEBUG";
-        case LogLevel::INFO: return "INFO";
-        case LogLevel::WARNING: return "WARNING";
-        case LogLevel::ERROR: return "ERROR";
+        case LogLevel::Debug: return "DEBUG";
+        case LogLevel::Info: return "INFO";
+        case LogLevel::Warn: return "WARNING";
+        case LogLevel::Error: return "ERROR";
         default: return "UNKNOWN";
     }
 }

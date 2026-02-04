@@ -10,10 +10,10 @@
 
 
 enum class LogLevel {
-    DEBUG,
-    INFO,
-    WARNING,
-    ERROR
+    Debug,
+    Info,
+    Warn,
+    Error
 };
 
 class Logger {
@@ -32,7 +32,7 @@ private:
     ~Logger();
     
     std::ofstream log_file_;
-    LogLevel min_level_ = LogLevel::INFO;
+    LogLevel min_level_ = LogLevel::Info;
     std::mutex mutex_;
     
     std::string getCurrentTime();
@@ -40,7 +40,7 @@ private:
 };
 
 // 便捷宏
-#define LOG_DEBUG(msg) Logger::getInstance().log(LogLevel::DEBUG, msg)
-#define LOG_INFO(msg) Logger::getInstance().log(LogLevel::INFO, msg)
-#define LOG_WARNING(msg) Logger::getInstance().log(LogLevel::WARNING, msg)
-#define LOG_ERROR(msg) Logger::getInstance().log(LogLevel::ERROR, msg)
+#define LOG_DEBUG(msg) Logger::getInstance().log(LogLevel::Debug, msg)
+#define LOG_INFO(msg) Logger::getInstance().log(LogLevel::Info, msg)
+#define LOG_WARNING(msg) Logger::getInstance().log(LogLevel::Warn, msg)
+#define LOG_ERROR(msg) Logger::getInstance().log(LogLevel::Error, msg)
