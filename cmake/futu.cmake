@@ -160,31 +160,16 @@ if(ENABLE_FUTU)
         # ========== 创建 FUTU exchange 动态库（分开编译，独立动态加载） ==========
         # 这个库包含 futu_exchange.cpp 和 futu_spi.cpp，使用与 FTAPI 兼容的编译选项
         # 编译为动态库以支持独立的动态加载
-        # 必须编译 FTAPI 提供的 .pb.cc 文件以定义 protobuf 类
-        
-        # 为了避免符号未定义，将项目的基础库源文件也编译到 futu_exchange 中
-        # 这样 Logger 等依赖就会被包含在动态库中
-        file(GLOB BASE_LIB_SOURCES
-            "${CMAKE_SOURCE_DIR}/src/utils/logger.cpp"
-            "${CMAKE_SOURCE_DIR}/src/utils/stringsUtils.cpp"
-        )
-        
-        # 编译所有 FTAPI 提供的 protobuf 文件（必须）
-        file(GLOB FTAPI_PROTO_SOURCES
-            "${FUTU_INCLUDE_DIRS}/Proto/*.pb.cc"
-        )
+        # 直接链接到 FTAPI 提供的预编译库，无需编译源码
         
         # 编译为动态库（主进程通过 dlopen 动态加载，不在编译时链接）
-        add_library(futu_exchange SHARED ${FUTU_SOURCES} ${BASE_LIB_SOURCES} ${FTAPI_PROTO_SOURCES})
+        add_library(futu_exchange SHARED ${FUTU_SOURCES})
         
         # 设置包含目录
         target_include_directories(futu_exchange 
             PRIVATE ${FUTU_INCLUDE_DIRS}
             PRIVATE ${CMAKE_SOURCE_DIR}/include
         )
-        
-        # 添加依赖库（logger 和其他基础库需要的依赖）
-        target_link_libraries(futu_exchange PRIVATE nlohmann_json::nlohmann_json)
         
         # *** 关键：仅为这个库应用旧的编译选项，不影响主程序 ***
         # 这样主程序可以使用 C++17/C++20，而 FUTU exchange 使用兼容老平台的选项
@@ -200,38 +185,28 @@ if(ENABLE_FUTU)
                 "-flat_namespace"
                 "-undefined suppress"
             )
-            message(STATUS "FUTU exchange: using macOS 10.13 compatibility (dynamic library with symbol deferred linking)")
+            message(STATUS "FUTU exchange: using macOS 10.13 compatibility (dynamic library)")
         else()
-            # Linux: 动态库需要 fPIC，同时需要允许未定义的符号（来自 FTAPI 预加载库）
-            # FTAPI 预编译库是非 PIC 的，所以链接时需要特殊处理
-            target_compile_options(futu_exchange PRIVATE
-                -fPIC
-                -fno-stack-protector
-            )
-            # 允许未定义的符号（这些符号会在运行时由 dlopen 的进程提供）
-            target_link_options(futu_exchange PRIVATE
-                "-Wl,--allow-shlib-undefined"
-            )
-            message(STATUS "FUTU exchange: using Ubuntu 16.04 compatibility flags (dynamic library with -fPIC and symbol deferral)")
+            # Linux: 动态库需要 fPIC
+            target_compile_options(futu_exchange PRIVATE -fPIC)
+            message(STATUS "FUTU exchange: using Linux compatibility flags (dynamic library with -fPIC)")
         endif()
         
-        # 链接到 FTAPI 库
-        # 所有 protobuf 符号现在由编译的 .pb.cc 文件定义
-        if(APPLE)
-            # macOS: 标准链接
-            target_link_libraries(futu_exchange PRIVATE 
-                ${FTAPI_LIB}
-                ${FTAPI_CHANNEL_LIB}
-                ${PROTOBUF_LIB}
-                ${ZLIB_LIB}
-            )
+        # 链接到 FTAPI 预编译库
+        target_link_libraries(futu_exchange PRIVATE 
+            ${FTAPI_LIB}
+            ${FTAPI_CHANNEL_LIB}
+            ${PROTOBUF_LIB}
+        )
+        
+        # Linux 上额外需要链接系统库
+        if(NOT APPLE)
+            target_link_libraries(futu_exchange PRIVATE ${ZLIB_LIB})
         else()
-            # Linux: 标准链接
-            target_link_libraries(futu_exchange PRIVATE 
-                ${FTAPI_LIB}
-                ${FTAPI_CHANNEL_LIB}
-                ${PROTOBUF_LIB}
-            )
+            # macOS 可能需要
+            if(ZLIB_LIB)
+                target_link_libraries(futu_exchange PRIVATE ${ZLIB_LIB})
+            endif()
         endif()
         
         # NOTE: futu_exchange 库将独立编译，主进程通过 dlopen 动态加载，不在编译时链接
