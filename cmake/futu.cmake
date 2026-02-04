@@ -109,60 +109,64 @@ if(ENABLE_FUTU)
         message(STATUS "FUTU exchange library created (separate compilation, not linked to main executable)")
         message(STATUS "FTAPI integration completed with differentiated compilation")
     else()
-        # Linux/macOS: 使用预编译库
-        # 关键：为了避免编译选项冲突，将 FUTU wrapper 代码单独编译成静态库
-        # FUTU wrapper 使用旧的编译选项（兼容 FTAPI 的老平台），主程序使用 C++17/C++20
+        # Linux/macOS: 编译 FTAPI 源码（必须编译以生成 PIC 代码，用于动态库）
+        # 理由：FTAPI 预编译库是非 PIC 的，无法链接到动态库
+        # 编译源码可以用 -fPIC 重新编译，解决这个问题
         
+        set(FUTU_INCLUDE_DIRS "${FTAPI_HOME}/Include")
+        
+        # 1. 编译 Protobuf
+        message(STATUS "Integrating Protobuf from source: ${PROTO_SRC_DIR}")
+        add_subdirectory("${PROTO_SRC_DIR}/cmake" "${CMAKE_BINARY_DIR}/futu/protobuf" EXCLUDE_FROM_ALL)
+        
+        # 2. 编译 FTAPI 源码（用 -fPIC 编译以支持动态库）
+        file(GLOB_RECURSE FTAPI_CORE_SOURCES 
+            "${FTAPI_SRC_DIR}/FTAPI/*.cpp" 
+            "${FTAPI_SRC_DIR}/FTAPI/*.cc"
+            "${FUTU_INCLUDE_DIRS}/*.cpp"
+            "${FUTU_INCLUDE_DIRS}/*.cc"
+        )
+        
+        add_library(ftapi_compat STATIC ${FTAPI_CORE_SOURCES})
+        set_target_properties(ftapi_compat PROPERTIES OUTPUT_NAME "FTAPI")
+        target_include_directories(ftapi_compat PUBLIC ${FUTU_INCLUDE_DIRS})
+        
+        # 关键：编译时添加 -fPIC，使静态库能链接到动态库
+        target_compile_options(ftapi_compat PUBLIC -fPIC)
+        target_link_libraries(ftapi_compat PUBLIC libprotobuf)
+        
+        # 3. 查找 FTAPIChannel 动态库
         if(APPLE)
             set(TARGET_OS "Mac")
-        else()
-            # Linux - Ubuntu 16.04 预编译库在较新系统上需要兼容性处理
-            set(TARGET_OS "Ubuntu16.04")
-            
-            # FTAPI 预编译库是非 PIE 的，需要全局禁用 PIE
-            add_compile_options(-no-pie)
-            add_link_options(-no-pie)
-            
-            message(STATUS "Applied Linux compatibility flags for Ubuntu 16 precompiled libraries (non-PIE)")
-        endif()
-        
-        set(FTAPI_BIN_DIR "${FTAPI_HOME}/Bin/${TARGET_OS}")
-
-        # macOS: FTAPI 的预编译库按配置放在 Debug/Release 子目录中
-        if(APPLE)
+            set(FTAPI_BIN_DIR "${FTAPI_HOME}/Bin/${TARGET_OS}")
             set(FTAPI_BIN_DIR_DEBUG "${FTAPI_BIN_DIR}/Debug")
             set(FTAPI_BIN_DIR_RELEASE "${FTAPI_BIN_DIR}/Release")
-
             if(NOT EXISTS "${FTAPI_BIN_DIR_DEBUG}" AND NOT EXISTS "${FTAPI_BIN_DIR_RELEASE}")
-                message(FATAL_ERROR "FTAPI precompiled libraries not found at ${FTAPI_BIN_DIR_DEBUG} or ${FTAPI_BIN_DIR_RELEASE}. Please verify FTAPI_HOME is correct.")
+                message(FATAL_ERROR "FTAPI libraries not found at ${FTAPI_BIN_DIR_DEBUG} or ${FTAPI_BIN_DIR_RELEASE}")
             endif()
-
-            # 优先使用与当前构建类型匹配的目录，但在查找时提供两个目录以提高健壮性
             set(FTAPI_SEARCH_DIRS "${FTAPI_BIN_DIR_DEBUG}" "${FTAPI_BIN_DIR_RELEASE}")
         else()
-            # Linux: 预编译库直接放在 FTAPI_BIN_DIR
+            set(TARGET_OS "Ubuntu16.04")
+            set(FTAPI_BIN_DIR "${FTAPI_HOME}/Bin/${TARGET_OS}")
             if(NOT EXISTS "${FTAPI_BIN_DIR}")
-                message(FATAL_ERROR "FTAPI precompiled libraries not found at ${FTAPI_BIN_DIR}. Please verify FTAPI_HOME is correct.")
+                message(FATAL_ERROR "FTAPI libraries not found at ${FTAPI_BIN_DIR}")
             endif()
-
             set(FTAPI_SEARCH_DIRS "${FTAPI_BIN_DIR}")
+            
+            # Linux: 全局禁用 PIE 兼容老库
+            add_compile_options(-no-pie)
+            add_link_options(-no-pie)
+            message(STATUS "Applied Linux compatibility flags: -no-pie")
         endif()
-
-        # 设置 FTAPI 头文件路径（必须，所有操作系统都需要）
-        set(FUTU_INCLUDE_DIRS "${FTAPI_HOME}/Include")
-
-        # 查找预编译库（macOS 会在 Debug/Release 两个子目录中查找）
-        find_library(FTAPI_LIB FTAPI PATHS ${FTAPI_SEARCH_DIRS} REQUIRED)
-        find_library(FTAPI_CHANNEL_LIB FTAPIChannel PATHS ${FTAPI_SEARCH_DIRS} REQUIRED)
-        find_library(PROTOBUF_LIB protobuf PATHS ${FTAPI_SEARCH_DIRS} REQUIRED)
-        find_library(ZLIB_LIB z)  # 系统自带的 zlib
-
-        # ========== 创建 FUTU exchange 动态库（分开编译，独立动态加载） ==========
-        # 这个库包含 futu_exchange.cpp 和 futu_spi.cpp，使用与 FTAPI 兼容的编译选项
-        # 编译为动态库以支持独立的动态加载
-        # 直接链接到 FTAPI 提供的预编译库，无需编译源码
         
-        # 编译为动态库（主进程通过 dlopen 动态加载，不在编译时链接）
+        find_library(FTAPI_CHANNEL_LIB FTAPIChannel PATHS ${FTAPI_SEARCH_DIRS} REQUIRED)
+        find_library(PROTOBUF_PREBUILT_LIB protobuf PATHS ${FTAPI_SEARCH_DIRS})
+        find_library(ZLIB_LIB z)
+        
+        # ========== 创建 FUTU exchange 动态库（分开编译，独立动态加载） ==========
+        # 这个库包含 futu_exchange.cpp 和 futu_spi.cpp
+        # 编译为动态库，主进程通过 dlopen 动态加载，不在编译时链接
+        
         add_library(futu_exchange SHARED ${FUTU_SOURCES})
         
         # 设置包含目录
@@ -171,11 +175,9 @@ if(ENABLE_FUTU)
             PRIVATE ${CMAKE_SOURCE_DIR}/include
         )
         
-        # *** 关键：仅为这个库应用旧的编译选项，不影响主程序 ***
-        # 这样主程序可以使用 C++17/C++20，而 FUTU exchange 使用兼容老平台的选项
+        # *** 关键：为这个库应用适当的编译选项 ***
         if(APPLE)
             # macOS: 使用最低系统版本以兼容 FTAPI 的编译环境
-            # 注：标准库已在全局 CMakeLists.txt 中统一设置为 libc++，避免 ABI 不兼容
             target_compile_options(futu_exchange PRIVATE
                 "-mmacosx-version-min=10.13"
                 "-fPIC"
@@ -187,38 +189,38 @@ if(ENABLE_FUTU)
             )
             message(STATUS "FUTU exchange: using macOS 10.13 compatibility (dynamic library)")
         else()
-            # Linux: 动态库需要 fPIC
+            # Linux: 动态库需要 fPIC（但整体项目已经 -no-pie）
             target_compile_options(futu_exchange PRIVATE -fPIC)
             message(STATUS "FUTU exchange: using Linux compatibility flags (dynamic library with -fPIC)")
         endif()
         
-        # 链接到 FTAPI 预编译库
+        # 链接到编译的 FTAPI 库和预编译的 FTAPIChannel
         target_link_libraries(futu_exchange PRIVATE 
-            ${FTAPI_LIB}
+            ftapi_compat
             ${FTAPI_CHANNEL_LIB}
-            ${PROTOBUF_LIB}
         )
         
-        # Linux 上额外需要链接系统库
+        # 链接系统库
         if(NOT APPLE)
-            target_link_libraries(futu_exchange PRIVATE ${ZLIB_LIB})
+            if(ZLIB_LIB)
+                target_link_libraries(futu_exchange PRIVATE ${ZLIB_LIB})
+            endif()
+            target_link_libraries(futu_exchange PRIVATE pthread dl)
         else()
-            # macOS 可能需要
             if(ZLIB_LIB)
                 target_link_libraries(futu_exchange PRIVATE ${ZLIB_LIB})
             endif()
         endif()
         
         # NOTE: futu_exchange 库将独立编译，主进程通过 dlopen 动态加载，不在编译时链接
-        # 这些库信息保留用于动态库编译时的依赖
         set(FUTU_WRAPPER_LIB futu_exchange)
-        set(FUTU_DEPENDENCIES ${FTAPI_LIB} ${FTAPI_CHANNEL_LIB} ${PROTOBUF_LIB})
+        set(FUTU_DEPENDENCIES ftapi_compat ${FTAPI_CHANNEL_LIB})
         
         # FUTU_LIBRARIES 为空，主进程不链接（动态加载）
         set(FUTU_LIBRARIES "")
         
         message(STATUS "FTAPI include directory: ${FUTU_INCLUDE_DIRS}")
-        message(STATUS "FUTU exchange library created (dynamic library, loaded at runtime)")
+        message(STATUS "FUTU exchange library created (dynamic library, compiled with -fPIC source)")
         message(STATUS "FUTU exchange library: ${FUTU_WRAPPER_LIB}")
         message(STATUS "FUTU dependencies: ${FUTU_DEPENDENCIES}")
     endif()
