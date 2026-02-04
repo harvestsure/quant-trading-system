@@ -115,9 +115,24 @@ if(ENABLE_FUTU)
         
         set(FUTU_INCLUDE_DIRS "${FTAPI_HOME}/Include")
         
-        # 1. 编译 Protobuf
+        # 1. 编译 Protobuf（需要 -fPIC 以支持动态库）
         message(STATUS "Integrating Protobuf from source: ${PROTO_SRC_DIR}")
+        
+        # Linux/macOS 上编译 Protobuf 时必须使用 -fPIC
+        if(APPLE)
+            # macOS
+            set(CMAKE_CXX_FLAGS_SAVE "${CMAKE_CXX_FLAGS}")
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -mmacosx-version-min=10.13")
+        else()
+            # Linux
+            set(CMAKE_CXX_FLAGS_SAVE "${CMAKE_CXX_FLAGS}")
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
+        endif()
+        
         add_subdirectory("${PROTO_SRC_DIR}/cmake" "${CMAKE_BINARY_DIR}/futu/protobuf" EXCLUDE_FROM_ALL)
+        
+        # 恢复编译选项
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_SAVE}")
         
         # 2. 编译 FTAPI 源码（用 -fPIC 编译以支持动态库）
         file(GLOB_RECURSE FTAPI_CORE_SOURCES 
