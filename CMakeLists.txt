@@ -65,9 +65,8 @@ if(ENABLE_BINANCE)
     link_directories(${CMAKE_SOURCE_DIR}/binance-api/lib)
 endif()
 
-# 核心源文件（总是编译）
-set(CORE_SOURCES
-    src/main.cpp
+# 基础库（不依赖交易所模块）
+set(BASE_LIBS
     src/config/config_manager.cpp
     src/managers/position_manager.cpp
     src/managers/risk_manager.cpp
@@ -84,12 +83,23 @@ set(CORE_SOURCES
     src/utils/stringsUtils.cpp
 )
 
+add_library(project_base_libs OBJECT ${BASE_LIBS})
+target_include_directories(project_base_libs PUBLIC ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(project_base_libs PUBLIC nlohmann_json::nlohmann_json)
+
+# 核心源文件（总是编译）
+set(CORE_SOURCES
+    src/main.cpp
+    $<TARGET_OBJECTS:project_base_libs>
+)
+
 # 根据启用的交易所添加对应的源文件
 set(EXCHANGE_SOURCES "")
 
-if(ENABLE_FUTU)
-    list(APPEND EXCHANGE_SOURCES ${FUTU_SOURCES})
-endif()
+# NOTE: FUTU 源文件现在被编译为动态库，不在主程序中编译
+# if(ENABLE_FUTU)
+#     list(APPEND EXCHANGE_SOURCES ${FUTU_SOURCES})
+# endif()
 
 if(ENABLE_IBKR)
     list(APPEND EXCHANGE_SOURCES src/exchange/ibkr_exchange.cpp)
@@ -128,8 +138,10 @@ endif()
 # 根据启用的交易所添加对应的链接库
 set(EXCHANGE_LIBRARIES "")
 
+# NOTE: FUTU 模块编译为独立动态库，主进程不直接链接，为未来动态加载dylib做准备
 if(ENABLE_FUTU)
-    list(APPEND EXCHANGE_LIBRARIES ${FUTU_LIBRARIES})
+    # futu_wrapper 动态库将被编译，但不链接项目库到动态库
+    # 调用动态库时由主程序的符号提供
 endif()
 
 if(ENABLE_IBKR)

@@ -21,33 +21,35 @@ std::shared_ptr<IExchange> ExchangeFactory::createExchange(
     
     switch (type) {
         case ExchangeType::FUTU: {
-#ifdef ENABLE_FUTU
-            FutuConfig futu_config;
+// #ifdef ENABLE_FUTU
+//             FutuConfig futu_config;
             
-            // 从配置中读取参数
-            if (config.find("host") != config.end()) {
-                futu_config.host = config.at("host");
-            }
-            if (config.find("port") != config.end()) {
-                futu_config.port = std::stoi(config.at("port"));
-            }
-            if (config.find("unlock_password") != config.end()) {
-                futu_config.unlock_password = config.at("unlock_password");
-            }
-            if (config.find("is_simulation") != config.end()) {
-                futu_config.is_simulation = (config.at("is_simulation") == "true" || config.at("is_simulation") == "1");
-            }
-            if (config.find("market") != config.end()) {
-                futu_config.market = config.at("market");
-            }
+//             // 从配置中读取参数
+//             if (config.find("host") != config.end()) {
+//                 futu_config.host = config.at("host");
+//             }
+//             if (config.find("port") != config.end()) {
+//                 futu_config.port = std::stoi(config.at("port"));
+//             }
+//             if (config.find("unlock_password") != config.end()) {
+//                 futu_config.unlock_password = config.at("unlock_password");
+//             }
+//             if (config.find("is_simulation") != config.end()) {
+//                 futu_config.is_simulation = (config.at("is_simulation") == "true" || config.at("is_simulation") == "1");
+//             }
+//             if (config.find("market") != config.end()) {
+//                 futu_config.market = config.at("market");
+//             }
             
-            LOG_INFO("Creating Futu Exchange instance");
-            return std::make_shared<FutuExchange>(futu_config);
-#else
-            LOG_ERROR("Futu exchange is not enabled. Please rebuild with -DENABLE_FUTU=ON");
+//             LOG_INFO("Creating Futu Exchange instance");
+//             return std::make_shared<FutuExchange>(futu_config);
+// #else
+//             LOG_ERROR("Futu exchange is not enabled. Please rebuild with -DENABLE_FUTU=ON");
+//             return nullptr;
+// #endif
+            LOG_ERROR("Futu exchange implementation is not complete");
             return nullptr;
-#endif
-        }
+         }
         
         case ExchangeType::IBKR: {
 #ifdef ENABLE_IBKR

@@ -1,11 +1,18 @@
 #include "utils/logger.h"
 #include "utils/stringsUtils.h"
 #include <iostream>
-#include <filesystem>
 #include <chrono>
 #include <sstream>
 #include <iomanip>
 #include <ctime>
+
+#ifdef _WIN32
+    #include <direct.h>
+    #define CREATE_DIR(path) _mkdir(path)
+#else
+    #include <sys/stat.h>
+    #define CREATE_DIR(path) mkdir(path, 0755)
+#endif
 
 Logger& Logger::getInstance() {
     static Logger instance;
@@ -14,8 +21,9 @@ Logger& Logger::getInstance() {
 
 Logger::Logger() {
     // 创建 logs 目录（如果不存在）
+    // 跨平台支持：Windows (_mkdir) 和 Unix/macOS (mkdir)
     try {
-        std::filesystem::create_directories("logs");
+        CREATE_DIR("logs");
     } catch (const std::exception& e) {
         std::cerr << "Failed to create logs directory: " << e.what() << std::endl;
     }
