@@ -120,9 +120,10 @@ if(ENABLE_FUTU)
         
         # Linux/macOS 上编译 Protobuf 时必须使用 -fPIC
         if(APPLE)
-            # macOS
+            # macOS：使用 -fvisibility=hidden 隐藏 Protobuf 符号，避免与 libFTAPIChannel.dylib 的冲突
             set(CMAKE_CXX_FLAGS_SAVE "${CMAKE_CXX_FLAGS}")
-            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -mmacosx-version-min=10.13")
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -fvisibility=hidden -mmacosx-version-min=10.13")
+            message(STATUS "macOS Protobuf build: enabling symbol hiding with -fvisibility=hidden")
         else()
             # Linux
             set(CMAKE_CXX_FLAGS_SAVE "${CMAKE_CXX_FLAGS}")
@@ -133,6 +134,16 @@ if(ENABLE_FUTU)
         
         # 恢复编译选项
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_SAVE}")
+        
+        # macOS：为 libprotobuf 设置默认符号可见性为隐藏，确保不会导出与 FTAPI 冲突的符号
+        if(APPLE AND TARGET libprotobuf)
+            set_target_properties(libprotobuf PROPERTIES
+                C_VISIBILITY_PRESET hidden
+                CXX_VISIBILITY_PRESET hidden
+                VISIBILITY_INLINES_HIDDEN ON
+            )
+            message(STATUS "Applied symbol hiding to libprotobuf on macOS")
+        endif()
         
         # 2. 编译 FTAPI 源码（用 -fPIC 编译以支持动态库）
         file(GLOB_RECURSE FTAPI_CORE_SOURCES 
@@ -148,6 +159,7 @@ if(ENABLE_FUTU)
         
         # 关键：编译时添加 -fPIC，使静态库能链接到动态库
         target_compile_options(ftapi_compat PUBLIC -fPIC)
+        # ftapi_compat 需要链接 libprotobuf，但 libprotobuf 的符号会在 futu_exchange.dylib 中隐藏
         target_link_libraries(ftapi_compat PUBLIC libprotobuf)
         
         # 3. 查找 FTAPIChannel 动态库
@@ -198,28 +210,42 @@ if(ENABLE_FUTU)
         
         # *** 关键：为这个库应用适当的编译选项 ***
         if(APPLE)
-            # macOS: 使用最低系统版本以兼容 FTAPI 的编译环境
+            # macOS: 使用最低系统版本以兼容 FTAPI 的编译环境，同时隐藏 libprotobuf 符号避免冲突
             target_compile_options(futu_exchange PRIVATE
                 "-mmacosx-version-min=10.13"
                 "-fPIC"
+                "-fvisibility=hidden"
             )
             target_link_options(futu_exchange PRIVATE
                 "-mmacosx-version-min=10.13"
-                "-flat_namespace"
-                "-undefined suppress"
             )
-            message(STATUS "FUTU exchange: using macOS 10.13 compatibility (dynamic library)")
+            set_target_properties(futu_exchange PROPERTIES
+                CXX_VISIBILITY_PRESET hidden
+                VISIBILITY_INLINES_HIDDEN ON
+            )
+            message(STATUS "FUTU exchange: using macOS 10.13 + symbol hiding to prevent FTAPI conflicts")
         else()
             # Linux: 动态库需要 fPIC（但整体项目已经 -no-pie）
             target_compile_options(futu_exchange PRIVATE -fPIC)
             message(STATUS "FUTU exchange: using Linux compatibility flags (dynamic library with -fPIC)")
         endif()
         
-        # 链接到编译的 FTAPI 库和预编译的 FTAPIChannel
+        # 链接到编译的 FTAPI 库、预编译的 FTAPIChannel 和 libprotobuf
+        # 注意：libprotobuf 会被静态链接到 futu_exchange.dylib 中（因为是 PUBLIC 依赖）
+        # 并且符号会被隐藏，避免与 libFTAPIChannel.dylib 中的 Protobuf 冲突
         target_link_libraries(futu_exchange PRIVATE 
             ftapi_compat
+            libprotobuf
             ${FTAPI_CHANNEL_LIB}
         )
+        
+        # macOS: 不使用 -undefined suppress（会导致符号找不到）
+        # 而是使用 -flat_namespace 允许运行时符号解析
+        if(APPLE)
+            target_link_options(futu_exchange PRIVATE
+                "-flat_namespace"
+            )
+        endif()
         
         # 链接系统库
         if(NOT APPLE)
