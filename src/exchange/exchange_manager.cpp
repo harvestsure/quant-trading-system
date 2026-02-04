@@ -10,20 +10,8 @@ ExchangeManager& ExchangeManager::getInstance() {
 
 bool ExchangeManager::initExchange(const ExchangeInstanceConfig& config) {
     std::lock_guard<std::mutex> lock(mutex_);
-    
-    ExchangeType type;
+
     std::map<std::string, std::string> params;
-    
-    if (config.name == "futu") {
-        type = ExchangeType::FUTU;
-    } else if (config.name == "ibkr") {
-        type = ExchangeType::IBKR;
-    } else if (config.name == "binance") {
-        type = ExchangeType::BINANCE;
-    } else {
-        LOG_ERROR("Unknown exchange type: " + config.name);
-        return false;
-    }
     
     // 将JSON参数转换为字符串map
     for (const auto& [key, value] : config.params.items()) {
@@ -38,7 +26,7 @@ bool ExchangeManager::initExchange(const ExchangeInstanceConfig& config) {
         }
     }
     
-    auto exchange = ExchangeFactory::createExchange(type, params);
+    auto exchange = ExchangeFactory::getInstance().createExchange(config.name, params);
     if (!exchange) {
         LOG_ERROR("Failed to create exchange: " + config.name);
         return false;

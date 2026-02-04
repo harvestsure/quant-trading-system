@@ -5,16 +5,16 @@
 #include <map>
 #include <memory>
 #include <functional>
+#include "common/defines.h"
 #include "common/object.h"
- 
 
-// 交易所类型
-enum class ExchangeType {
-    FUTU,
-    IBKR,
-    BINANCE,
-    // 可以添加更多交易所
-};
+#define ExchangeClass "GetExchangeClass"
+#define ExchangeInstance "GetExchangeInstance"
+
+namespace dylib {
+    class library;
+}
+ 
 
 // 账户信息
 struct AccountInfo {
@@ -49,7 +49,6 @@ public:
     virtual bool connect() = 0;
     virtual bool disconnect() = 0;
     virtual bool isConnected() const = 0;
-    virtual ExchangeType getType() const = 0;
     virtual std::string getName() const = 0;
     virtual std::string getDisplayName() const = 0;
     
@@ -99,10 +98,24 @@ public:
 // 交易所工厂
 class ExchangeFactory {
 public:
-    static std::shared_ptr<IExchange> createExchange(
-        ExchangeType type,
+    static ExchangeFactory& getInstance();
+
+    std::shared_ptr<IExchange> createExchange(
+        std::string name,
         const std::map<std::string, std::string>& config
     );
+
+    ExchangeFactory(const ExchangeFactory&) = delete;
+    ExchangeFactory& operator=(const ExchangeFactory&) = delete;
+
+private:
+    ExchangeFactory();
+
+    void load_exchange_class();
+    void load_exchange_class_from_module(std::string module_name);
+
+
+    std::map<std::string, std::shared_ptr<dylib::library>> loaded_libraries_;
 };
 
  

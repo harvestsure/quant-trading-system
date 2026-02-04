@@ -37,7 +37,6 @@ public:
     bool connect() override;
     bool disconnect() override;
     bool isConnected() const override;
-    ExchangeType getType() const override { return ExchangeType::FUTU; }
     std::string getName() const override { return "futu"; }
     std::string getDisplayName() const override { return "Futu Securities"; }
     
@@ -97,3 +96,10 @@ private:
     int32_t convertKLineType(const std::string& kline_type);
     #endif
 };
+
+
+extern "C"
+{
+	QTS_DECL_EXPORT const char* GetExchangeClass();
+	QTS_DECL_EXPORT IExchange* GetExchangeInstance(const std::map<std::string, std::string>& config);
+}

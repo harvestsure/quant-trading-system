@@ -30,6 +30,15 @@ endif()
 # Include directories
 include_directories(${CMAKE_SOURCE_DIR}/include)
 
+# dylib (library) - prefer checked-in submodule under libraries/dylib
+if(EXISTS ${CMAKE_SOURCE_DIR}/libraries/dylib/CMakeLists.txt)
+    message(STATUS "Adding dylib subproject from libraries/dylib")
+    add_subdirectory(${CMAKE_SOURCE_DIR}/libraries/dylib ${CMAKE_BINARY_DIR}/libraries_dylib_build)
+else()
+    message(STATUS "dylib not found in libraries/dylib; skipping dylib subproject")
+endif()
+
+
 # 交易所配置
 include(cmake/futu.cmake)
 if(ENABLE_FUTU)
@@ -51,20 +60,6 @@ if(APPLE)
     message(STATUS "Global: using libc++ standard library for all modules")
 endif()
 
-if(ENABLE_IBKR)
-    message(STATUS "IBKR Exchange: ENABLED")
-    add_definitions(-DENABLE_IBKR)
-    include_directories(${CMAKE_SOURCE_DIR}/ibkr-api/include)
-    link_directories(${CMAKE_SOURCE_DIR}/ibkr-api/lib)
-endif()
-
-if(ENABLE_BINANCE)
-    message(STATUS "Binance Exchange: ENABLED")
-    add_definitions(-DENABLE_BINANCE)
-    include_directories(${CMAKE_SOURCE_DIR}/binance-api/include)
-    link_directories(${CMAKE_SOURCE_DIR}/binance-api/lib)
-endif()
-
 # 基础库（不依赖交易所模块）
 set(BASE_LIBS
     src/config/config_manager.cpp
@@ -83,34 +78,21 @@ set(BASE_LIBS
     src/utils/stringsUtils.cpp
 )
 
-add_library(project_base_libs OBJECT ${BASE_LIBS})
+add_library(project_base_libs STATIC ${BASE_LIBS})
 target_include_directories(project_base_libs PUBLIC ${CMAKE_SOURCE_DIR}/include)
 target_link_libraries(project_base_libs PUBLIC nlohmann_json::nlohmann_json)
+
+if(TARGET dylib)
+    target_link_libraries(project_base_libs PUBLIC dylib)
+endif()
 
 # 核心源文件（总是编译）
 set(CORE_SOURCES
     src/main.cpp
-    $<TARGET_OBJECTS:project_base_libs>
 )
 
-# 根据启用的交易所添加对应的源文件
-set(EXCHANGE_SOURCES "")
-
-# NOTE: FUTU 源文件现在被编译为动态库，不在主程序中编译
-# if(ENABLE_FUTU)
-#     list(APPEND EXCHANGE_SOURCES ${FUTU_SOURCES})
-# endif()
-
-if(ENABLE_IBKR)
-    list(APPEND EXCHANGE_SOURCES src/exchange/ibkr_exchange.cpp)
-endif()
-
-if(ENABLE_BINANCE)
-    list(APPEND EXCHANGE_SOURCES src/exchange/binance_exchange.cpp)
-endif()
-
 # 合并所有源文件
-set(SOURCES ${CORE_SOURCES} ${EXCHANGE_SOURCES})
+set(SOURCES ${CORE_SOURCES})
 
 # 收集头文件（用于在 Visual Studio 中显示）
 file(GLOB_RECURSE PROJECT_HEADERS
@@ -129,35 +111,25 @@ endif()
 # Create executable
 add_executable(quant-trading-system ${SOURCES})
 
+# Some configurations (OBJECT libraries / generator expressions) may leave
+# CMake unable to infer the link language. Force it to C++ explicitly.
+set_target_properties(quant-trading-system PROPERTIES LINKER_LANGUAGE CXX)
+
 # 基础链接库
 set(BASE_LIBRARIES Threads::Threads)
 if(NOT WIN32)
     list(APPEND BASE_LIBRARIES pthread dl)
 endif()
 
-# 根据启用的交易所添加对应的链接库
-set(EXCHANGE_LIBRARIES "")
-
-# NOTE: FUTU 模块编译为独立动态库，主进程不直接链接，为未来动态加载dylib做准备
-if(ENABLE_FUTU)
-    # futu_wrapper 动态库将被编译，但不链接项目库到动态库
-    # 调用动态库时由主程序的符号提供
-endif()
-
-if(ENABLE_IBKR)
-    list(APPEND EXCHANGE_LIBRARIES TwsApi)  # TWS API library
-endif()
-
-if(ENABLE_BINANCE)
-    list(APPEND EXCHANGE_LIBRARIES binance-cpprest)  # Binance API library
-endif()
-
 # Link libraries
-target_link_libraries(quant-trading-system
+target_link_libraries(quant-trading-system PRIVATE
     ${BASE_LIBRARIES}
-    ${EXCHANGE_LIBRARIES}
     nlohmann_json::nlohmann_json
 )
+
+# Link the project base static library into the executable so `main` and
+# all object files are included in the final link.
+target_link_libraries(quant-trading-system PRIVATE project_base_libs)
 
 # Compiler options
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")

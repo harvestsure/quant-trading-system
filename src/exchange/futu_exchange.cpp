@@ -9,6 +9,9 @@
 using namespace Futu;
 #endif
 
+#define CLASS_NAME "futu"
+
+
 FutuExchange::FutuExchange(const FutuConfig& config)
     : config_(config), connected_(false) {
     #ifdef ENABLE_FUTU
@@ -1112,4 +1115,34 @@ std::map<std::string, Snapshot> FutuExchange::getBatchSnapshots(
     
     LOG_INFO(std::string("Got ") + std::to_string(snapshots.size()) + " snapshots");
     return snapshots;
+}
+
+
+const char* GetExchangeClass() {
+    return CLASS_NAME;
+}
+
+IExchange* GetExchangeInstance(const std::map<std::string, std::string>& config) {
+
+    FutuConfig futu_config;
+    
+    // 从配置中读取参数
+    if (config.find("host") != config.end()) {
+        futu_config.host = config.at("host");
+    }
+    if (config.find("port") != config.end()) {
+        futu_config.port = std::stoi(config.at("port"));
+    }
+    if (config.find("unlock_password") != config.end()) {
+        futu_config.unlock_password = config.at("unlock_password");
+    }
+    if (config.find("is_simulation") != config.end()) {
+        futu_config.is_simulation = (config.at("is_simulation") == "true" || config.at("is_simulation") == "1");
+    }
+    if (config.find("market") != config.end()) {
+        futu_config.market = config.at("market");
+    }
+    
+    LOG_INFO("Creating Futu Exchange instance");
+    return new FutuExchange(futu_config);
 }
