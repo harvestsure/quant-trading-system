@@ -424,13 +424,13 @@ void IBKRExchange::writeLog(LogLevel level, const std::string& message) {
 
     if (event_engine_) {
         // 通过事件引擎发布日志
-        // 注意：不能直接通过std::any在dylib和主程序间传递LogData
-        // 因为它们的RTTI类型信息不同，std::any_cast会失败
-        // 改用Event的extras机制来传递日志数据
+        LogData log_data;
+        log_data.level = level;
+        log_data.message = "[IBKRExchange] " + message;
+        log_data.timestamp = current_timestamp;
+        
         auto event = std::make_shared<Event>(EventType::EVENT_LOG);
-        event->setExtra("level", levelToString(level));
-        event->setExtra("message", "[IBKRExchange] " + message);
-        event->setExtra("timestamp", std::to_string(current_timestamp));
+        event->setData(log_data);
         event_engine_->putEvent(event);
     } else {
 

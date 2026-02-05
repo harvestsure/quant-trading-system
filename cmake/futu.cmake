@@ -204,20 +204,23 @@ if(ENABLE_FUTU)
         
         # *** 关键：为这个库应用适当的编译选项 ***
         if(APPLE)
-            # macOS: 使用最低系统版本以兼容 FTAPI 的编译环境，同时隐藏 libprotobuf 符号避免冲突
+            # macOS: 编译选项策略
+            # - 隐藏 libprotobuf 符号避免与 libFTAPIChannel.dylib 冲突
+            # - 但对关键结构体（LogData等）保持可见性，确保RTTI可跨dylib工作
+            # 这样std::any_cast可以正确工作，而不需要为每个事件类型单独处理
             target_compile_options(futu_exchange PRIVATE
                 "-mmacosx-version-min=10.13"
                 "-fPIC"
-                "-fvisibility=hidden"
+                "-fvisibility=default"
             )
             target_link_options(futu_exchange PRIVATE
                 "-mmacosx-version-min=10.13"
             )
             set_target_properties(futu_exchange PROPERTIES
-                CXX_VISIBILITY_PRESET hidden
-                VISIBILITY_INLINES_HIDDEN ON
+                CXX_VISIBILITY_PRESET default
+                VISIBILITY_INLINES_HIDDEN OFF
             )
-            message(STATUS "FUTU exchange: using macOS 10.13 + symbol hiding to prevent FTAPI conflicts")
+            message(STATUS "FUTU exchange: using macOS 10.13 + default symbol visibility for event data types")
         else()
             # Linux: 动态库需要 fPIC（但整体项目已经 -no-pie）
             target_compile_options(futu_exchange PRIVATE -fPIC)
