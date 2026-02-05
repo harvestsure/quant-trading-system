@@ -58,7 +58,7 @@
       "ma_period": 20,
       "volume_factor": 1.5
     }
-  },
+  }, 
   "logging": {
     "level": "INFO",
     "console": true,

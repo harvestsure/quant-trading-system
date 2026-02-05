@@ -136,6 +136,9 @@ int main(int argc, char* argv[]) {
     
     // 初始化策略管理器（策略实例将由扫描器动态创建）
     auto& strategy_mgr = StrategyManager::getInstance();
+    
+    // 为策略管理器初始化事件处理器
+    strategy_mgr.initializeEventHandlers(&event_engine);
     LOG_INFO("Strategy manager initialized - strategies will be created dynamically based on scan results");
     
     // 创建并启动市场扫描器

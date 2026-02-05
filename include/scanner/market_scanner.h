@@ -2,6 +2,7 @@
 
 #include "exchange/exchange_interface.h"
 #include "managers/strategy_manager.h"
+#include "config/config_manager.h"
 #include <string>
 #include <vector>
 #include <thread>
@@ -55,6 +56,7 @@ private:
     mutable std::mutex qualified_stocks_mutex_;
     
     // 扫描参数配置
+    ScannerParams scanner_params_;  // 从配置文件加载的扫描参数
     static constexpr int BATCH_SIZE = 400;  // 每批扫描400个股票
     static constexpr int OPENING_SCAN_INTERVAL_MS = 60000;    // 开盘期间60秒
     static constexpr int NORMAL_SCAN_INTERVAL_MS = 90000;     // 正常时段90秒
@@ -73,7 +75,10 @@ private:
     // 筛选和评分
     bool meetsSelectionCriteria(const ScanResult& result) const;
     double calculateScore(const ScanResult& result) const;
-    ScanResult convertSnapshotToScanResult(const Snapshot& snapshot, const std::string& exchange_name = "") const;
+    // 转换为scanresult并存储交易所姓名不要调用方处处理交易所信息
+    ScanResult convertSnapshotToScanResult(const Snapshot& snapshot, 
+                                           const std::string& exchange_name,
+                                           std::shared_ptr<IExchange> exchange = nullptr) const;
     
     // 获取当前时刻（时:分）
     std::pair<int, int> getCurrentTime() const;

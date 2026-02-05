@@ -8,6 +8,7 @@
 #include <mutex>
 #include "common/object.h"
 #include "event/event_interface.h"
+#include "exchange/exchange_interface.h"
 
  
 
@@ -21,6 +22,8 @@ struct ScanResult {
     double volume;
     double turnover_rate;
     double score;  // 评分
+    std::string exchange_name;  // 交易所名称
+    std::shared_ptr<IExchange> exchange;  // 交易所实例
 };
 
 // 策略实例信息
@@ -28,6 +31,8 @@ struct StrategyInstance {
     std::string symbol;
     std::shared_ptr<StrategyBase> strategy;
     bool is_active;
+    std::string exchange_name;  // 交易所名称
+    std::shared_ptr<IExchange> exchange;  // 对应的交易所实例
 };
 
 class StrategyManager {

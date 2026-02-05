@@ -3,6 +3,7 @@
 #include "strategies/strategy_base.h"
 #include "strategies/momentum_strategy.h"
 #include "event/event.h"
+#include "exchange/exchange_interface.h"
 #include "utils/logger.h"
 #include <algorithm>
 #include <sstream>
@@ -82,6 +83,25 @@ void StrategyManager::createStrategyInstance(const std::string& symbol, const Sc
         return;
     }
     
+    // 订阅行情数据（使用正确的交易所实例）
+    if (scan_result.exchange && scan_result.exchange->isConnected()) {
+        const std::string& exchange_name = scan_result.exchange_name;
+        
+        // 订阅 K 线数据（1分钟）
+        if (!scan_result.exchange->subscribeKLine(symbol, "1m")) {
+            LOG_WARNING("Failed to subscribe KLine for " + symbol + " on " + exchange_name);
+        }
+        
+        // 订阅 Tick 数据
+        if (!scan_result.exchange->subscribeTick(symbol)) {
+            LOG_WARNING("Failed to subscribe Tick for " + symbol + " on " + exchange_name);
+        }
+        
+        LOG_INFO("Subscribed market data for " + symbol + " on " + exchange_name);
+    } else {
+        LOG_WARNING("Exchange not ready for " + symbol + ", cannot subscribe market data");
+    }
+    
     // 启动策略
     strategy->start();
     
@@ -93,12 +113,15 @@ void StrategyManager::createStrategyInstance(const std::string& symbol, const Sc
     instance.symbol = symbol;
     instance.strategy = strategy;
     instance.is_active = true;
+    instance.exchange_name = scan_result.exchange_name;
+    instance.exchange = scan_result.exchange;
     
     strategy_instances_[symbol] = instance;
     
     std::stringstream ss;
     ss << "Created strategy instance for " << symbol 
        << " (" << scan_result.stock_name << ")"
+       << " on " << scan_result.exchange_name
        << " - Score: " << scan_result.score
        << ", Price: " << scan_result.price
        << ", Change: " << (scan_result.change_ratio * 100) << "%";
@@ -123,6 +146,14 @@ void StrategyManager::removeStrategyInstance(const std::string& symbol, bool for
         // 标记为不活跃，但保留策略实例继续监控持仓
         it->second.is_active = false;
         return;
+    }
+    
+    // 使用正确的交易所实例取消订阅
+    const auto& exchange = it->second.exchange;
+    if (exchange && exchange->isConnected()) {
+        exchange->unsubscribeKLine(symbol);
+        exchange->unsubscribeTick(symbol);
+        LOG_INFO("Unsubscribed market data for " + symbol + " from " + it->second.exchange_name);
     }
     
     // 停止策略

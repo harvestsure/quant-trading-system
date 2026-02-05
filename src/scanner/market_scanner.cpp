@@ -1,5 +1,6 @@
 #include "scanner/market_scanner.h"
 #include "managers/strategy_manager.h"
+#include "config/config_manager.h"
 #include "utils/logger.h"
 #include <chrono>
 #include <thread>
@@ -29,6 +30,10 @@ void MarketScanner::start() {
         LOG_WARNING("Market scanner already running");
         return;
     }
+    
+    // 从配置文件加载扫描参数
+    scanner_params_ = ConfigManager::getInstance().getScannerParams();
+    LOG_INFO("Loaded scanner config - top_n: " + std::to_string(scanner_params_.top_n));
     
     std::lock_guard<std::mutex> lock(exchanges_mutex_);
     if (exchanges_.empty()) {
@@ -187,9 +192,9 @@ void MarketScanner::performScan(const std::shared_ptr<IExchange>& exchange) {
             return a.score > b.score;
         });
     
-    // 只保留前10名
-    if (filtered_results.size() > 10) {
-        filtered_results.resize(10);
+    // 只保留前top_n名（从配置文件读取）
+    if (filtered_results.size() > static_cast<size_t>(scanner_params_.top_n)) {
+        filtered_results.resize(scanner_params_.top_n);
     }
     
     // 更新合格股票列表
@@ -232,7 +237,7 @@ std::vector<ScanResult> MarketScanner::batchFetchMarketData(const std::shared_pt
             
             // 转换为ScanResult并计算评分
             for (const auto& pair : snapshots) {
-                ScanResult result = convertSnapshotToScanResult(pair.second, exchange->getName());
+                ScanResult result = convertSnapshotToScanResult(pair.second, exchange->getName(), exchange);
                 result.score = calculateScore(result);
                 all_results.push_back(result);
             }
@@ -248,7 +253,9 @@ std::vector<ScanResult> MarketScanner::batchFetchMarketData(const std::shared_pt
     return all_results;
 }
 
-ScanResult MarketScanner::convertSnapshotToScanResult(const Snapshot& snapshot, const std::string& exchange_name) const {
+ScanResult MarketScanner::convertSnapshotToScanResult(const Snapshot& snapshot, 
+                                                       const std::string& exchange_name,
+                                                       std::shared_ptr<IExchange> exchange) const {
     ScanResult result;
     result.symbol = snapshot.symbol;
     result.stock_name = snapshot.name;
@@ -256,6 +263,8 @@ ScanResult MarketScanner::convertSnapshotToScanResult(const Snapshot& snapshot, 
     result.change_ratio = snapshot.price_change/snapshot.last_price;
     result.volume = snapshot.volume;
     result.turnover_rate = snapshot.turnover_rate;
+    result.exchange_name = exchange_name;
+    result.exchange = exchange;  // 止了订阅事件，丐稀消息不需要exchange指针
     return result;
 }
 

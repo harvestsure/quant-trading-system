@@ -87,6 +87,9 @@ public:
     
     const TradingConfig& getConfig() const { return config_; }
     
+    // 便捷访问方法 - 扫描器参数
+    const ScannerParams& getScannerParams() const { return config_.scanner; }
+    
     // 便捷访问方法 - 多交易所支持
     const std::vector<ExchangeInstanceConfig>& getExchanges() const { return config_.exchanges; }
     std::vector<ExchangeInstanceConfig> getEnabledExchanges() const;
