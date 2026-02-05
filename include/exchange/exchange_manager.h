@@ -6,6 +6,9 @@
 #include <memory>
 #include <mutex>
 
+// 前向声明
+class IEventEngine;
+
  
 
 // 交易所管理器 - 支持多交易所的统一入口
@@ -18,6 +21,9 @@ public:
     
     // 初始化所有启用的交易所
     bool initAllExchanges(const std::vector<ExchangeInstanceConfig>& configs);
+    
+    // 设置事件引擎（应在初始化交易所之前调用）
+    void setEventEngine(IEventEngine* event_engine);
     
     // 获取交易所实例
     std::shared_ptr<IExchange> getExchange(const std::string& exchange_name);
@@ -72,6 +78,7 @@ private:
     
     std::map<std::string, std::shared_ptr<IExchange>> exchanges_;  // 多交易所存储
     mutable std::mutex mutex_;
+    IEventEngine* event_engine_ = nullptr;  // 事件引擎指针
 };
 
  

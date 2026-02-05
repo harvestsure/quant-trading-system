@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <cstdint>
+#include "utils/logger_defines.h"
 
 // 基础数据结构与枚举，供全局使用
 
@@ -22,6 +23,21 @@ enum class OrderSide {
 enum class OrderType {
     LIMIT = 0,
     MARKET = 1
+};
+
+// K线周期枚举
+enum class KlineInterval {
+    K_1M, // minute
+    K_3M,
+    K_5M,
+    K_15M,
+    K_30M,
+    K_1H, // hour
+    K_4H,
+    K_1D, // day
+    K_1W,  // week
+    K_1MO, // month
+    K_1Y  // year
 };
 
 // 订单状态
@@ -70,6 +86,9 @@ struct KlineData {
     int64_t timestamp;
     std::string datetime;
     std::string interval;
+
+    // 对应的枚举周期，保留 string 字段以兼容外部配置
+    KlineInterval interval_enum = KlineInterval::K_1M;
 
     double open_price = 0.0;
     double high_price = 0.0;
@@ -165,7 +184,7 @@ struct SignalData {
 
 // 日志数据
 struct LogData {
-    std::string level;
+    LogLevel level = LogLevel::Info;
     std::string message;
     int64_t timestamp = 0;
 };

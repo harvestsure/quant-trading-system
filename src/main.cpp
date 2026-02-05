@@ -108,11 +108,15 @@ int main(int argc, char* argv[]) {
     
     // 启动事件引擎（必须在其他模块之前启动）
     auto& event_engine = EventEngine::getInstance();
+    auto log_event_handler = std::bind(&Logger::handld_logs, &Logger::getInstance(), std::placeholders::_1);
+    event_engine.registerHandler(EventType::EVENT_LOG, log_event_handler);
+   
     event_engine.start();
     LOG_INFO("Event engine started");
     
     // 初始化交易所
     auto& exchange_mgr = ExchangeManager::getInstance();
+    exchange_mgr.setEventEngine(&event_engine);
     
     // 初始化所有启用的交易所
     if (!exchange_mgr.initAllExchanges(config.exchanges)) {

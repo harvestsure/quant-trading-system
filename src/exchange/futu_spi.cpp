@@ -1,8 +1,8 @@
 #ifdef ENABLE_FUTU
 
 #include "futu_spi.h"
+#include "event/event_interface.h"
 #include "exchange/futu_exchange.h"
-#include "utils/logger.h"
 #include <chrono>
 
 FutuSpi::FutuSpi(FutuExchange* exchange) : exchange_(exchange) {
@@ -41,7 +41,7 @@ bool FutuSpi::InitApi(const std::string& host, int port) {
         std::lock_guard<std::mutex> lock(mutex_);
         
         if (api_initialized_) {
-            LOG_WARNING("API already initialized");
+            writeLog(LogLevel::Warn, "API already initialized");
             return true;
         }
         
@@ -56,7 +56,7 @@ bool FutuSpi::InitApi(const std::string& host, int port) {
         // 创建行情API
         qot_api_ = Futu::FTAPI::CreateQotApi();
         if (qot_api_ == nullptr) {
-            LOG_ERROR("Failed to create Qot API");
+            writeLog(LogLevel::Error, "Failed to create Qot API");
             return false;
         }
         
@@ -70,7 +70,7 @@ bool FutuSpi::InitApi(const std::string& host, int port) {
         // 初始化连接
         bool ret = qot_api_->InitConnect(host.c_str(), port, false);
         /*if (!ret) {
-            LOG_ERROR("Failed to initialize Qot API connection");
+            writeLog(LogLevel::Error, "Failed to initialize Qot API connection");
             Futu::FTAPI::ReleaseQotApi(qot_api_);
             qot_api_ = nullptr;
             return false;
@@ -81,7 +81,7 @@ bool FutuSpi::InitApi(const std::string& host, int port) {
         {
             std::lock_guard<std::mutex> lock(mutex_);
             if (!is_qot_connected_) {
-                LOG_ERROR("Qot API connection failed");
+                writeLog(LogLevel::Error, "Qot API connection failed");
                 Futu::FTAPI::ReleaseQotApi(qot_api_);
                 qot_api_ = nullptr;
                 return false;
@@ -91,7 +91,7 @@ bool FutuSpi::InitApi(const std::string& host, int port) {
         // 创建交易API
         trd_api_ = Futu::FTAPI::CreateTrdApi();
         if (trd_api_ == nullptr) {
-            LOG_ERROR("Failed to create Trd API");
+            writeLog(LogLevel::Error, "Failed to create Trd API");
             qot_api_->Close();
             Futu::FTAPI::ReleaseQotApi(qot_api_);
             qot_api_ = nullptr;
@@ -108,7 +108,7 @@ bool FutuSpi::InitApi(const std::string& host, int port) {
         // 初始化连接
         ret = trd_api_->InitConnect(host.c_str(), port, false);
         /* if (!ret) {
-            LOG_ERROR("Failed to initialize Trd API connection");
+            writeLog(LogLevel::Error, "Failed to initialize Trd API connection");
             qot_api_->Close();
             Futu::FTAPI::ReleaseQotApi(qot_api_);
             Futu::FTAPI::ReleaseTrdApi(trd_api_);
@@ -122,7 +122,7 @@ bool FutuSpi::InitApi(const std::string& host, int port) {
         {
             std::lock_guard<std::mutex> lock(mutex_);
             if (!is_trd_connected_) {
-                LOG_ERROR("Trd API connection failed");
+                writeLog(LogLevel::Error, "Trd API connection failed");
                 trd_api_->Close();
                 qot_api_->Close();
                 Futu::FTAPI::ReleaseQotApi(qot_api_);
@@ -135,11 +135,11 @@ bool FutuSpi::InitApi(const std::string& host, int port) {
             api_initialized_ = true;
         }
         
-        LOG_INFO(std::string("FTAPI initialized successfully at ") + host + ":" + std::to_string(port));
+        writeLog(LogLevel::Info, std::string("FTAPI initialized successfully at ") + host + ":" + std::to_string(port));
         return true;
         
     } catch (const std::exception& e) {
-        LOG_ERROR(std::string("Exception during API initialization: ") + e.what());
+        writeLog(LogLevel::Error, std::string("Exception during API initialization: ") + e.what());
         return false;
     }
 }
@@ -165,10 +165,10 @@ void FutuSpi::ReleaseApi() {
         }
         
         api_initialized_ = false;
-        LOG_INFO("FTAPI released successfully");
+        writeLog(LogLevel::Info, "FTAPI released successfully");
         
     } catch (const std::exception& e) {
-        LOG_ERROR(std::string("Exception during API release: ") + e.what());
+        writeLog(LogLevel::Error, std::string("Exception during API release: ") + e.what());
     }
 }
 
@@ -181,7 +181,7 @@ bool FutuSpi::IsConnected() const {
 
 Futu::u32_t FutuSpi::SendUnlockTrade(const std::string& password) {
     if (trd_api_ == nullptr) {
-        LOG_ERROR("Trd API not initialized");
+        writeLog(LogLevel::Error, "Trd API not initialized");
         return 0;
     }
     
@@ -194,22 +194,22 @@ Futu::u32_t FutuSpi::SendUnlockTrade(const std::string& password) {
         
         Futu::u32_t serial_no = trd_api_->UnlockTrade(req);
         if (serial_no == 0) {
-            LOG_ERROR("Failed to send unlock trade request");
+            writeLog(LogLevel::Error, "Failed to send unlock trade request");
             return 0;
         }
         
-        LOG_INFO(std::string("Sent unlock trade request, serial_no=") + std::to_string(serial_no));
+        writeLog(LogLevel::Info, std::string("Sent unlock trade request, serial_no=") + std::to_string(serial_no));
         return serial_no;
         
     } catch (const std::exception& e) {
-        LOG_ERROR(std::string("Exception during send unlock trade: ") + e.what());
+        writeLog(LogLevel::Error, std::string("Exception during send unlock trade: ") + e.what());
         return 0;
     }
 }
 
 Futu::u32_t FutuSpi::SendGetAccList() {
     if (trd_api_ == nullptr) {
-        LOG_ERROR("Trd API not initialized");
+        writeLog(LogLevel::Error, "Trd API not initialized");
         return 0;
     }
     
@@ -220,22 +220,22 @@ Futu::u32_t FutuSpi::SendGetAccList() {
         
         Futu::u32_t serial_no = trd_api_->GetAccList(req);
         if (serial_no == 0) {
-            LOG_ERROR("Failed to send get account list request");
+            writeLog(LogLevel::Error, "Failed to send get account list request");
             return 0;
         }
         
-        LOG_INFO(std::string("Sent get account list request, serial_no=") + std::to_string(serial_no));
+        writeLog(LogLevel::Info, std::string("Sent get account list request, serial_no=") + std::to_string(serial_no));
         return serial_no;
         
     } catch (const std::exception& e) {
-        LOG_ERROR(std::string("Exception during send get account list: ") + e.what());
+        writeLog(LogLevel::Error, std::string("Exception during send get account list: ") + e.what());
         return 0;
     }
 }
 
 Futu::u32_t FutuSpi::SendGetFunds(Futu::u64_t acc_id, int trd_env, int trd_market) {
     if (trd_api_ == nullptr) {
-        LOG_ERROR("Trd API not initialized");
+        writeLog(LogLevel::Error, "Trd API not initialized");
         return 0;
     }
     
@@ -249,22 +249,22 @@ Futu::u32_t FutuSpi::SendGetFunds(Futu::u64_t acc_id, int trd_env, int trd_marke
         
         Futu::u32_t serial_no = trd_api_->GetFunds(req);
         if (serial_no == 0) {
-            LOG_ERROR("Failed to send get funds request");
+            writeLog(LogLevel::Error, "Failed to send get funds request");
             return 0;
         }
         
-        LOG_INFO(std::string("Sent get funds request, serial_no=") + std::to_string(serial_no));
+        writeLog(LogLevel::Info, std::string("Sent get funds request, serial_no=") + std::to_string(serial_no));
         return serial_no;
         
     } catch (const std::exception& e) {
-        LOG_ERROR(std::string("Exception during send get funds: ") + e.what());
+        writeLog(LogLevel::Error, std::string("Exception during send get funds: ") + e.what());
         return 0;
     }
 }
 
 Futu::u32_t FutuSpi::SendGetPositionList(Futu::u64_t acc_id, int trd_env, int trd_market) {
     if (trd_api_ == nullptr) {
-        LOG_ERROR("Trd API not initialized");
+        writeLog(LogLevel::Error, "Trd API not initialized");
         return 0;
     }
     
@@ -278,22 +278,22 @@ Futu::u32_t FutuSpi::SendGetPositionList(Futu::u64_t acc_id, int trd_env, int tr
         
         Futu::u32_t serial_no = trd_api_->GetPositionList(req);
         if (serial_no == 0) {
-            LOG_ERROR("Failed to send get position list request");
+            writeLog(LogLevel::Error, "Failed to send get position list request");
             return 0;
         }
         
-        LOG_INFO(std::string("Sent get position list request, serial_no=") + std::to_string(serial_no));
+        writeLog(LogLevel::Info, std::string("Sent get position list request, serial_no=") + std::to_string(serial_no));
         return serial_no;
         
     } catch (const std::exception& e) {
-        LOG_ERROR(std::string("Exception during send get position list: ") + e.what());
+        writeLog(LogLevel::Error, std::string("Exception during send get position list: ") + e.what());
         return 0;
     }
 }
 
 Futu::u32_t FutuSpi::SendGetOrderList(Futu::u64_t acc_id, int trd_env, int trd_market) {
     if (trd_api_ == nullptr) {
-        LOG_ERROR("Trd API not initialized");
+        writeLog(LogLevel::Error, "Trd API not initialized");
         return 0;
     }
     
@@ -307,15 +307,15 @@ Futu::u32_t FutuSpi::SendGetOrderList(Futu::u64_t acc_id, int trd_env, int trd_m
         
         Futu::u32_t serial_no = trd_api_->GetOrderList(req);
         if (serial_no == 0) {
-            LOG_ERROR("Failed to send get order list request");
+            writeLog(LogLevel::Error, "Failed to send get order list request");
             return 0;
         }
         
-        LOG_INFO(std::string("Sent get order list request, serial_no=") + std::to_string(serial_no));
+        writeLog(LogLevel::Info, std::string("Sent get order list request, serial_no=") + std::to_string(serial_no));
         return serial_no;
         
     } catch (const std::exception& e) {
-        LOG_ERROR(std::string("Exception during send get order list: ") + e.what());
+        writeLog(LogLevel::Error, std::string("Exception during send get order list: ") + e.what());
         return 0;
     }
 }
@@ -324,7 +324,7 @@ Futu::u32_t FutuSpi::SendPlaceOrder(Futu::u64_t acc_id, int trd_env, int trd_mar
                                      const Qot_Common::Security& security, int order_side,
                                      int order_type, Futu::i64_t quantity, double price) {
     if (trd_api_ == nullptr) {
-        LOG_ERROR("Trd API not initialized");
+        writeLog(LogLevel::Error, "Trd API not initialized");
         return 0;
     }
     
@@ -347,15 +347,15 @@ Futu::u32_t FutuSpi::SendPlaceOrder(Futu::u64_t acc_id, int trd_env, int trd_mar
         
         Futu::u32_t serial_no = trd_api_->PlaceOrder(req);
         if (serial_no == 0) {
-            LOG_ERROR("Failed to send place order request");
+            writeLog(LogLevel::Error, "Failed to send place order request");
             return 0;
         }
         
-        LOG_INFO(std::string("Sent place order request, serial_no=") + std::to_string(serial_no));
+        writeLog(LogLevel::Info, std::string("Sent place order request, serial_no=") + std::to_string(serial_no));
         return serial_no;
         
     } catch (const std::exception& e) {
-        LOG_ERROR(std::string("Exception during send place order: ") + e.what());
+        writeLog(LogLevel::Error, std::string("Exception during send place order: ") + e.what());
         return 0;
     }
 }
@@ -363,7 +363,7 @@ Futu::u32_t FutuSpi::SendPlaceOrder(Futu::u64_t acc_id, int trd_env, int trd_mar
 Futu::u32_t FutuSpi::SendModifyOrder(Futu::u64_t acc_id, int trd_env, Futu::u64_t order_id,
                                       Futu::i64_t quantity, double price) {
     if (trd_api_ == nullptr) {
-        LOG_ERROR("Trd API not initialized");
+        writeLog(LogLevel::Error, "Trd API not initialized");
         return 0;
     }
     
@@ -381,22 +381,22 @@ Futu::u32_t FutuSpi::SendModifyOrder(Futu::u64_t acc_id, int trd_env, Futu::u64_
         
         Futu::u32_t serial_no = trd_api_->ModifyOrder(req);
         if (serial_no == 0) {
-            LOG_ERROR("Failed to send modify order request");
+            writeLog(LogLevel::Error, "Failed to send modify order request");
             return 0;
         }
         
-        LOG_INFO(std::string("Sent modify order request, serial_no=") + std::to_string(serial_no));
+        writeLog(LogLevel::Info, std::string("Sent modify order request, serial_no=") + std::to_string(serial_no));
         return serial_no;
         
     } catch (const std::exception& e) {
-        LOG_ERROR(std::string("Exception during send modify order: ") + e.what());
+        writeLog(LogLevel::Error, std::string("Exception during send modify order: ") + e.what());
         return 0;
     }
 }
 
 Futu::u32_t FutuSpi::SendCancelOrder(Futu::u64_t acc_id, int trd_env, Futu::u64_t order_id) {
     if (trd_api_ == nullptr) {
-        LOG_ERROR("Trd API not initialized");
+        writeLog(LogLevel::Error, "Trd API not initialized");
         return 0;
     }
     
@@ -413,15 +413,15 @@ Futu::u32_t FutuSpi::SendCancelOrder(Futu::u64_t acc_id, int trd_env, Futu::u64_
         
         Futu::u32_t serial_no = trd_api_->ModifyOrder(req);
         if (serial_no == 0) {
-            LOG_ERROR("Failed to send cancel order request");
+            writeLog(LogLevel::Error, "Failed to send cancel order request");
             return 0;
         }
         
-        LOG_INFO(std::string("Sent cancel order request, serial_no=") + std::to_string(serial_no));
+        writeLog(LogLevel::Info, std::string("Sent cancel order request, serial_no=") + std::to_string(serial_no));
         return serial_no;
         
     } catch (const std::exception& e) {
-        LOG_ERROR(std::string("Exception during send cancel order: ") + e.what());
+        writeLog(LogLevel::Error, std::string("Exception during send cancel order: ") + e.what());
         return 0;
     }
 }
@@ -430,7 +430,7 @@ Futu::u32_t FutuSpi::SendCancelOrder(Futu::u64_t acc_id, int trd_env, Futu::u64_
 
 Futu::u32_t FutuSpi::SendSubscribeKLine(const Qot_Common::Security& security, int kline_type) {
     if (qot_api_ == nullptr) {
-        LOG_ERROR("Qot API not initialized");
+        writeLog(LogLevel::Error, "Qot API not initialized");
         return 0;
     }
     
@@ -452,22 +452,22 @@ Futu::u32_t FutuSpi::SendSubscribeKLine(const Qot_Common::Security& security, in
         
         Futu::u32_t serial_no = qot_api_->Sub(req);
         if (serial_no == 0) {
-            LOG_ERROR("Failed to send subscribe KLine request");
+            writeLog(LogLevel::Error, "Failed to send subscribe KLine request");
             return 0;
         }
         
-        LOG_INFO(std::string("Sent subscribe KLine request, serial_no=") + std::to_string(serial_no));
+        writeLog(LogLevel::Info, std::string("Sent subscribe KLine request, serial_no=") + std::to_string(serial_no));
         return serial_no;
         
     } catch (const std::exception& e) {
-        LOG_ERROR(std::string("Exception during send subscribe KLine: ") + e.what());
+        writeLog(LogLevel::Error, std::string("Exception during send subscribe KLine: ") + e.what());
         return 0;
     }
 }
 
 Futu::u32_t FutuSpi::SendGetKLine(const Qot_Common::Security& security, int kline_type, int count) {
     if (qot_api_ == nullptr) {
-        LOG_ERROR("Qot API not initialized");
+        writeLog(LogLevel::Error, "Qot API not initialized");
         return 0;
     }
     
@@ -480,22 +480,22 @@ Futu::u32_t FutuSpi::SendGetKLine(const Qot_Common::Security& security, int klin
         
         Futu::u32_t serial_no = qot_api_->GetKL(req);
         if (serial_no == 0) {
-            LOG_ERROR("Failed to send get KLine request");
+            writeLog(LogLevel::Error, "Failed to send get KLine request");
             return 0;
         }
         
-        LOG_INFO(std::string("Sent get KLine request, serial_no=") + std::to_string(serial_no));
+        writeLog(LogLevel::Info, std::string("Sent get KLine request, serial_no=") + std::to_string(serial_no));
         return serial_no;
         
     } catch (const std::exception& e) {
-        LOG_ERROR(std::string("Exception during send get KLine: ") + e.what());
+        writeLog(LogLevel::Error, std::string("Exception during send get KLine: ") + e.what());
         return 0;
     }
 }
 
 Futu::u32_t FutuSpi::SendGetHistoryKLine(const Qot_Common::Security& security, int kline_type, int count) {
     if (qot_api_ == nullptr) {
-        LOG_ERROR("Qot API not initialized");
+        writeLog(LogLevel::Error, "Qot API not initialized");
         return 0;
     }
     
@@ -508,22 +508,22 @@ Futu::u32_t FutuSpi::SendGetHistoryKLine(const Qot_Common::Security& security, i
         
         Futu::u32_t serial_no = qot_api_->RequestHistoryKL(req);
         if (serial_no == 0) {
-            LOG_ERROR("Failed to send request history KLine request");
+            writeLog(LogLevel::Error, "Failed to send request history KLine request");
             return 0;
         }
         
-        LOG_INFO(std::string("Sent request history KLine, serial_no=") + std::to_string(serial_no));
+        writeLog(LogLevel::Info, std::string("Sent request history KLine, serial_no=") + std::to_string(serial_no));
         return serial_no;
         
     } catch (const std::exception& e) {
-        LOG_ERROR(std::string("Exception during send request history KLine: ") + e.what());
+        writeLog(LogLevel::Error, std::string("Exception during send request history KLine: ") + e.what());
         return 0;
     }
 }
 
 Futu::u32_t FutuSpi::SendGetSecuritySnapshot(const std::vector<Qot_Common::Security>& securities) {
     if (qot_api_ == nullptr) {
-        LOG_ERROR("Qot API not initialized");
+        writeLog(LogLevel::Error, "Qot API not initialized");
         return 0;
     }
     
@@ -538,22 +538,22 @@ Futu::u32_t FutuSpi::SendGetSecuritySnapshot(const std::vector<Qot_Common::Secur
         
         Futu::u32_t serial_no = qot_api_->GetSecuritySnapshot(req);
         if (serial_no == 0) {
-            LOG_ERROR("Failed to send get security snapshot request");
+            writeLog(LogLevel::Error, "Failed to send get security snapshot request");
             return 0;
         }
         
-        LOG_INFO(std::string("Sent get security snapshot request, serial_no=") + std::to_string(serial_no));
+        writeLog(LogLevel::Info, std::string("Sent get security snapshot request, serial_no=") + std::to_string(serial_no));
         return serial_no;
         
     } catch (const std::exception& e) {
-        LOG_ERROR(std::string("Exception during send get security snapshot: ") + e.what());
+        writeLog(LogLevel::Error, std::string("Exception during send get security snapshot: ") + e.what());
         return 0;
     }
 }
 
 Futu::u32_t FutuSpi::SendGetPlateSecurity(const std::string& plate_code) {
     if (qot_api_ == nullptr) {
-        LOG_ERROR("Qot API not initialized");
+        writeLog(LogLevel::Error, "Qot API not initialized");
         return 0;
     }
     
@@ -566,22 +566,22 @@ Futu::u32_t FutuSpi::SendGetPlateSecurity(const std::string& plate_code) {
         
         Futu::u32_t serial_no = qot_api_->GetPlateSecurity(req);
         if (serial_no == 0) {
-            LOG_ERROR("Failed to send get plate security request");
+            writeLog(LogLevel::Error, "Failed to send get plate security request");
             return 0;
         }
         
-        LOG_INFO(std::string("Sent get plate security request, serial_no=") + std::to_string(serial_no));
+        writeLog(LogLevel::Info, std::string("Sent get plate security request, serial_no=") + std::to_string(serial_no));
         return serial_no;
         
     } catch (const std::exception& e) {
-        LOG_ERROR(std::string("Exception during send get plate security: ") + e.what());
+        writeLog(LogLevel::Error, std::string("Exception during send get plate security: ") + e.what());
         return 0;
     }
 }
 
 Futu::u32_t FutuSpi::SendGetStaticInfo(int market_type, int security_type) {
     if (qot_api_ == nullptr) {
-        LOG_ERROR("Qot API not initialized");
+        writeLog(LogLevel::Error, "Qot API not initialized");
         return 0;
     }
     
@@ -597,22 +597,22 @@ Futu::u32_t FutuSpi::SendGetStaticInfo(int market_type, int security_type) {
         
         Futu::u32_t serial_no = qot_api_->GetStaticInfo(req);
         if (serial_no == 0) {
-            LOG_ERROR("Failed to send get static info request");
+            writeLog(LogLevel::Error, "Failed to send get static info request");
             return 0;
         }
         
-        LOG_INFO(std::string("Sent get static info request, serial_no=") + std::to_string(serial_no));
+        writeLog(LogLevel::Info, std::string("Sent get static info request, serial_no=") + std::to_string(serial_no));
         return serial_no;
         
     } catch (const std::exception& e) {
-        LOG_ERROR(std::string("Exception during send get static info: ") + e.what());
+        writeLog(LogLevel::Error, std::string("Exception during send get static info: ") + e.what());
         return 0;
     }
 }
 
 Futu::u32_t FutuSpi::SendSubscribeTick(const Qot_Common::Security& security) {
     if (qot_api_ == nullptr) {
-        LOG_ERROR("Qot API not initialized");
+        writeLog(LogLevel::Error, "Qot API not initialized");
         return 0;
     }
     
@@ -634,22 +634,22 @@ Futu::u32_t FutuSpi::SendSubscribeTick(const Qot_Common::Security& security) {
         
         Futu::u32_t serial_no = qot_api_->Sub(req);
         if (serial_no == 0) {
-            LOG_ERROR("Failed to send subscribe Tick request");
+            writeLog(LogLevel::Error, "Failed to send subscribe Tick request");
             return 0;
         }
         
-        LOG_INFO(std::string("Sent subscribe Tick request, serial_no=") + std::to_string(serial_no));
+        writeLog(LogLevel::Info, std::string("Sent subscribe Tick request, serial_no=") + std::to_string(serial_no));
         return serial_no;
         
     } catch (const std::exception& e) {
-        LOG_ERROR(std::string("Exception during send subscribe Tick: ") + e.what());
+        writeLog(LogLevel::Error, std::string("Exception during send subscribe Tick: ") + e.what());
         return 0;
     }
 }
 
 Futu::u32_t FutuSpi::SendUnsubscribeKLine(const Qot_Common::Security& security) {
     if (qot_api_ == nullptr) {
-        LOG_ERROR("Qot API not initialized");
+        writeLog(LogLevel::Error, "Qot API not initialized");
         return 0;
     }
     
@@ -666,15 +666,15 @@ Futu::u32_t FutuSpi::SendUnsubscribeKLine(const Qot_Common::Security& security) 
         
         Futu::u32_t serial_no = qot_api_->Sub(req);
         if (serial_no == 0) {
-            LOG_ERROR("Failed to send unsubscribe KLine request");
+            writeLog(LogLevel::Error, "Failed to send unsubscribe KLine request");
             return 0;
         }
         
-        LOG_INFO(std::string("Sent unsubscribe KLine request, serial_no=") + std::to_string(serial_no));
+        writeLog(LogLevel::Info, std::string("Sent unsubscribe KLine request, serial_no=") + std::to_string(serial_no));
         return serial_no;
         
     } catch (const std::exception& e) {
-        LOG_ERROR(std::string("Exception during send unsubscribe KLine: ") + e.what());
+        writeLog(LogLevel::Error, std::string("Exception during send unsubscribe KLine: ") + e.what());
         return 0;
     }
 }
@@ -683,9 +683,9 @@ Futu::u32_t FutuSpi::SendUnsubscribeKLine(const Qot_Common::Security& security) 
 
 void FutuSpi::OnInitConnect(Futu::FTAPI_Conn* pConn, Futu::i64_t nErrCode, const char* strDesc) {
     if (nErrCode == 0) {
-        LOG_INFO(std::string("FTAPI connected successfully: ") + strDesc);
+        writeLog(LogLevel::Info, std::string("FTAPI connected successfully: ") + strDesc);
     } else {
-        LOG_ERROR(std::string("FTAPI connection failed: code=") + std::to_string(nErrCode) + ", desc=" + strDesc);
+        writeLog(LogLevel::Error, std::string("FTAPI connection failed: code=") + std::to_string(nErrCode) + ", desc=" + strDesc);
     }
 
     if (pConn == qot_api_) {
@@ -698,47 +698,47 @@ void FutuSpi::OnInitConnect(Futu::FTAPI_Conn* pConn, Futu::i64_t nErrCode, const
 }
 
 void FutuSpi::OnDisConnect(Futu::FTAPI_Conn* pConn, Futu::i64_t nErrCode) {
-    LOG_WARNING(std::string("FTAPI disconnected: code=") + std::to_string(nErrCode));
+    writeLog(LogLevel::Warn, std::string("FTAPI disconnected: code=") + std::to_string(nErrCode));
 }
 
 // ========== FTSPI_Qot 回调 ==========
 
 void FutuSpi::OnReply_GetGlobalState(Futu::u32_t nSerialNo, const GetGlobalState::Response &stRsp) {
-    LOG_INFO("OnReply_GetGlobalState");
+    writeLog(LogLevel::Info, "OnReply_GetGlobalState");
     NotifyReply(nSerialNo);
 }
 
 void FutuSpi::OnReply_Sub(Futu::u32_t nSerialNo, const Qot_Sub::Response &stRsp) {
     if (stRsp.rettype() >= 0) {
-        LOG_INFO("Subscribe successful");
+        writeLog(LogLevel::Info, "Subscribe successful");
     } else {
-        LOG_ERROR(std::string("Subscribe failed: ") + stRsp.retmsg());
+        writeLog(LogLevel::Error, std::string("Subscribe failed: ") + stRsp.retmsg());
     }
     NotifyReply(nSerialNo);
 }
 
 void FutuSpi::OnReply_RegQotPush(Futu::u32_t nSerialNo, const Qot_RegQotPush::Response &stRsp) {
-    LOG_INFO("OnReply_RegQotPush");
+    writeLog(LogLevel::Info, "OnReply_RegQotPush");
     NotifyReply(nSerialNo);
 }
 
 void FutuSpi::OnReply_GetSubInfo(Futu::u32_t nSerialNo, const Qot_GetSubInfo::Response &stRsp) {
-    LOG_INFO("OnReply_GetSubInfo");
+    writeLog(LogLevel::Info, "OnReply_GetSubInfo");
     NotifyReply(nSerialNo);
 }
 
 void FutuSpi::OnReply_GetTicker(Futu::u32_t nSerialNo, const Qot_GetTicker::Response &stRsp) {
-    LOG_INFO("OnReply_GetTicker");
+    writeLog(LogLevel::Info, "OnReply_GetTicker");
     NotifyReply(nSerialNo);
 }
 
 void FutuSpi::OnReply_GetBasicQot(Futu::u32_t nSerialNo, const Qot_GetBasicQot::Response &stRsp) {
-    LOG_INFO("OnReply_GetBasicQot");
+    writeLog(LogLevel::Info, "OnReply_GetBasicQot");
     NotifyReply(nSerialNo);
 }
 
 void FutuSpi::OnReply_GetOrderBook(Futu::u32_t nSerialNo, const Qot_GetOrderBook::Response &stRsp) {
-    LOG_INFO("OnReply_GetOrderBook");
+    writeLog(LogLevel::Info, "OnReply_GetOrderBook");
     NotifyReply(nSerialNo);
 }
 
@@ -747,22 +747,22 @@ void FutuSpi::OnReply_GetKL(Futu::u32_t nSerialNo, const Qot_GetKL::Response &st
         std::lock_guard<std::mutex> lock(mutex_);
         kline_responses_[nSerialNo] = stRsp;
     }
-    LOG_INFO("OnReply_GetKL");
+    writeLog(LogLevel::Info, "OnReply_GetKL");
     NotifyReply(nSerialNo);
 }
 
 void FutuSpi::OnReply_GetRT(Futu::u32_t nSerialNo, const Qot_GetRT::Response &stRsp) {
-    LOG_INFO("OnReply_GetRT");
+    writeLog(LogLevel::Info, "OnReply_GetRT");
     NotifyReply(nSerialNo);
 }
 
 void FutuSpi::OnReply_GetBroker(Futu::u32_t nSerialNo, const Qot_GetBroker::Response &stRsp) {
-    LOG_INFO("OnReply_GetBroker");
+    writeLog(LogLevel::Info, "OnReply_GetBroker");
     NotifyReply(nSerialNo);
 }
 
 void FutuSpi::OnReply_RequestRehab(Futu::u32_t nSerialNo, const Qot_RequestRehab::Response &stRsp) {
-    LOG_INFO("OnReply_RequestRehab");
+    writeLog(LogLevel::Info, "OnReply_RequestRehab");
     NotifyReply(nSerialNo);
 }
 
@@ -771,17 +771,17 @@ void FutuSpi::OnReply_RequestHistoryKL(Futu::u32_t nSerialNo, const Qot_RequestH
         std::lock_guard<std::mutex> lock(mutex_);
         history_kline_responses_[nSerialNo] = stRsp;
     }
-    LOG_INFO("OnReply_RequestHistoryKL");
+    writeLog(LogLevel::Info, "OnReply_RequestHistoryKL");
     NotifyReply(nSerialNo);
 }
 
 void FutuSpi::OnReply_RequestHistoryKLQuota(Futu::u32_t nSerialNo, const Qot_RequestHistoryKLQuota::Response &stRsp) {
-    LOG_INFO("OnReply_RequestHistoryKLQuota");
+    writeLog(LogLevel::Info, "OnReply_RequestHistoryKLQuota");
     NotifyReply(nSerialNo);
 }
 
 void FutuSpi::OnReply_GetTradeDate(Futu::u32_t nSerialNo, const Qot_GetTradeDate::Response &stRsp) {
-    LOG_INFO("OnReply_GetTradeDate");
+    writeLog(LogLevel::Info, "OnReply_GetTradeDate");
     NotifyReply(nSerialNo);
 }
 
@@ -790,7 +790,7 @@ void FutuSpi::OnReply_GetStaticInfo(Futu::u32_t nSerialNo, const Qot_GetStaticIn
         std::lock_guard<std::mutex> lock(mutex_);
         static_info_responses_[nSerialNo] = stRsp;
     }
-    LOG_INFO("OnReply_GetStaticInfo");
+    writeLog(LogLevel::Info, "OnReply_GetStaticInfo");
     NotifyReply(nSerialNo);
 }
 
@@ -799,12 +799,12 @@ void FutuSpi::OnReply_GetSecuritySnapshot(Futu::u32_t nSerialNo, const Qot_GetSe
         std::lock_guard<std::mutex> lock(mutex_);
         snapshot_responses_[nSerialNo] = stRsp;
     }
-    LOG_INFO("OnReply_GetSecuritySnapshot");
+    writeLog(LogLevel::Info, "OnReply_GetSecuritySnapshot");
     NotifyReply(nSerialNo);
 }
 
 void FutuSpi::OnReply_GetPlateSet(Futu::u32_t nSerialNo, const Qot_GetPlateSet::Response &stRsp) {
-    LOG_INFO("OnReply_GetPlateSet");
+    writeLog(LogLevel::Info, "OnReply_GetPlateSet");
     NotifyReply(nSerialNo);
 }
 
@@ -813,138 +813,138 @@ void FutuSpi::OnReply_GetPlateSecurity(Futu::u32_t nSerialNo, const Qot_GetPlate
         std::lock_guard<std::mutex> lock(mutex_);
         plate_security_responses_[nSerialNo] = stRsp;
     }
-    LOG_INFO("OnReply_GetPlateSecurity");
+    writeLog(LogLevel::Info, "OnReply_GetPlateSecurity");
     NotifyReply(nSerialNo);
 }
 
 void FutuSpi::OnReply_GetReference(Futu::u32_t nSerialNo, const Qot_GetReference::Response &stRsp) {
-    LOG_INFO("OnReply_GetReference");
+    writeLog(LogLevel::Info, "OnReply_GetReference");
     NotifyReply(nSerialNo);
 }
 
 void FutuSpi::OnReply_GetOwnerPlate(Futu::u32_t nSerialNo, const Qot_GetOwnerPlate::Response &stRsp) {
-    LOG_INFO("OnReply_GetOwnerPlate");
+    writeLog(LogLevel::Info, "OnReply_GetOwnerPlate");
     NotifyReply(nSerialNo);
 }
 
 void FutuSpi::OnReply_GetHoldingChangeList(Futu::u32_t nSerialNo, const Qot_GetHoldingChangeList::Response &stRsp) {
-    LOG_INFO("OnReply_GetHoldingChangeList");
+    writeLog(LogLevel::Info, "OnReply_GetHoldingChangeList");
     NotifyReply(nSerialNo);
 }
 
 void FutuSpi::OnReply_GetOptionChain(Futu::u32_t nSerialNo, const Qot_GetOptionChain::Response &stRsp) {
-    LOG_INFO("OnReply_GetOptionChain");
+    writeLog(LogLevel::Info, "OnReply_GetOptionChain");
     NotifyReply(nSerialNo);
 }
 
 void FutuSpi::OnReply_GetWarrant(Futu::u32_t nSerialNo, const Qot_GetWarrant::Response &stRsp) {
-    LOG_INFO("OnReply_GetWarrant");
+    writeLog(LogLevel::Info, "OnReply_GetWarrant");
     NotifyReply(nSerialNo);
 }
 
 void FutuSpi::OnReply_GetCapitalFlow(Futu::u32_t nSerialNo, const Qot_GetCapitalFlow::Response &stRsp) {
-    LOG_INFO("OnReply_GetCapitalFlow");
+    writeLog(LogLevel::Info, "OnReply_GetCapitalFlow");
     NotifyReply(nSerialNo);
 }
 
 void FutuSpi::OnReply_GetCapitalDistribution(Futu::u32_t nSerialNo, const Qot_GetCapitalDistribution::Response &stRsp) {
-    LOG_INFO("OnReply_GetCapitalDistribution");
+    writeLog(LogLevel::Info, "OnReply_GetCapitalDistribution");
     NotifyReply(nSerialNo);
 }
 
 void FutuSpi::OnReply_GetUserSecurity(Futu::u32_t nSerialNo, const Qot_GetUserSecurity::Response &stRsp) {
-    LOG_INFO("OnReply_GetUserSecurity");
+    writeLog(LogLevel::Info, "OnReply_GetUserSecurity");
     NotifyReply(nSerialNo);
 }
 
 void FutuSpi::OnReply_ModifyUserSecurity(Futu::u32_t nSerialNo, const Qot_ModifyUserSecurity::Response &stRsp) {
-    LOG_INFO("OnReply_ModifyUserSecurity");
+    writeLog(LogLevel::Info, "OnReply_ModifyUserSecurity");
     NotifyReply(nSerialNo);
 }
 
 void FutuSpi::OnReply_StockFilter(Futu::u32_t nSerialNo, const Qot_StockFilter::Response &stRsp) {
-    LOG_INFO("OnReply_StockFilter");
+    writeLog(LogLevel::Info, "OnReply_StockFilter");
     NotifyReply(nSerialNo);
 }
 
 void FutuSpi::OnReply_GetCodeChange(Futu::u32_t nSerialNo, const Qot_GetCodeChange::Response &stRsp) {
-    LOG_INFO("OnReply_GetCodeChange");
+    writeLog(LogLevel::Info, "OnReply_GetCodeChange");
     NotifyReply(nSerialNo);
 }
 
 void FutuSpi::OnReply_GetIpoList(Futu::u32_t nSerialNo, const Qot_GetIpoList::Response &stRsp) {
-    LOG_INFO("OnReply_GetIpoList");
+    writeLog(LogLevel::Info, "OnReply_GetIpoList");
     NotifyReply(nSerialNo);
 }
 
 void FutuSpi::OnReply_GetFutureInfo(Futu::u32_t nSerialNo, const Qot_GetFutureInfo::Response &stRsp) {
-    LOG_INFO("OnReply_GetFutureInfo");
+    writeLog(LogLevel::Info, "OnReply_GetFutureInfo");
     NotifyReply(nSerialNo);
 }
 
 void FutuSpi::OnReply_RequestTradeDate(Futu::u32_t nSerialNo, const Qot_RequestTradeDate::Response &stRsp) {
-    LOG_INFO("OnReply_RequestTradeDate");
+    writeLog(LogLevel::Info, "OnReply_RequestTradeDate");
     NotifyReply(nSerialNo);
 }
 
 void FutuSpi::OnReply_SetPriceReminder(Futu::u32_t nSerialNo, const Qot_SetPriceReminder::Response &stRsp) {
-    LOG_INFO("OnReply_SetPriceReminder");
+    writeLog(LogLevel::Info, "OnReply_SetPriceReminder");
     NotifyReply(nSerialNo);
 }
 
 void FutuSpi::OnReply_GetPriceReminder(Futu::u32_t nSerialNo, const Qot_GetPriceReminder::Response &stRsp) {
-    LOG_INFO("OnReply_GetPriceReminder");
+    writeLog(LogLevel::Info, "OnReply_GetPriceReminder");
     NotifyReply(nSerialNo);
 }
 
 void FutuSpi::OnReply_GetUserSecurityGroup(Futu::u32_t nSerialNo, const Qot_GetUserSecurityGroup::Response &stRsp) {
-    LOG_INFO("OnReply_GetUserSecurityGroup");
+    writeLog(LogLevel::Info, "OnReply_GetUserSecurityGroup");
     NotifyReply(nSerialNo);
 }
 
 void FutuSpi::OnReply_GetMarketState(Futu::u32_t nSerialNo, const Qot_GetMarketState::Response &stRsp) {
-    LOG_INFO("OnReply_GetMarketState");
+    writeLog(LogLevel::Info, "OnReply_GetMarketState");
     NotifyReply(nSerialNo);
 }
 
 void FutuSpi::OnReply_GetOptionExpirationDate(Futu::u32_t nSerialNo, const Qot_GetOptionExpirationDate::Response &stRsp) {
-    LOG_INFO("OnReply_GetOptionExpirationDate");
+    writeLog(LogLevel::Info, "OnReply_GetOptionExpirationDate");
     NotifyReply(nSerialNo);
 }
 
 // 行情推送
 void FutuSpi::OnPush_Notify(const Notify::Response &stRsp) {
-    LOG_INFO("OnPush_Notify");
+    writeLog(LogLevel::Info, "OnPush_Notify");
 }
 
 void FutuSpi::OnPush_UpdateBasicQot(const Qot_UpdateBasicQot::Response &stRsp) {
-    LOG_INFO("OnPush_UpdateBasicQot");
+    writeLog(LogLevel::Info, "OnPush_UpdateBasicQot");
     // TODO: 转换并发布 Tick 事件
 }
 
 void FutuSpi::OnPush_UpdateOrderBook(const Qot_UpdateOrderBook::Response &stRsp) {
-    LOG_INFO("OnPush_UpdateOrderBook");
+    writeLog(LogLevel::Info, "OnPush_UpdateOrderBook");
 }
 
 void FutuSpi::OnPush_UpdateTicker(const Qot_UpdateTicker::Response &stRsp) {
-    LOG_INFO("OnPush_UpdateTicker");
+    writeLog(LogLevel::Info, "OnPush_UpdateTicker");
 }
 
 void FutuSpi::OnPush_UpdateKL(const Qot_UpdateKL::Response &stRsp) {
-    LOG_INFO("OnPush_UpdateKL");
+    writeLog(LogLevel::Info, "OnPush_UpdateKL");
     // TODO: 转换并发布 KLine 事件
 }
 
 void FutuSpi::OnPush_UpdateRT(const Qot_UpdateRT::Response &stRsp) {
-    LOG_INFO("OnPush_UpdateRT");
+    writeLog(LogLevel::Info, "OnPush_UpdateRT");
 }
 
 void FutuSpi::OnPush_UpdateBroker(const Qot_UpdateBroker::Response &stRsp) {
-    LOG_INFO("OnPush_UpdateBroker");
+    writeLog(LogLevel::Info, "OnPush_UpdateBroker");
 }
 
 void FutuSpi::OnPush_UpdatePriceReminder(const Qot_UpdatePriceReminder::Response &stRsp) {
-    LOG_INFO("OnPush_UpdatePriceReminder");
+    writeLog(LogLevel::Info, "OnPush_UpdatePriceReminder");
 }
 
 // ========== FTSPI_Trd 回调 ==========
@@ -954,21 +954,21 @@ void FutuSpi::OnReply_GetAccList(Futu::u32_t nSerialNo, const Trd_GetAccList::Re
         std::lock_guard<std::mutex> lock(mutex_);
         acc_list_responses_[nSerialNo] = stRsp;
     }
-    LOG_INFO("OnReply_GetAccList");
+    writeLog(LogLevel::Info, "OnReply_GetAccList");
     NotifyReply(nSerialNo);
 }
 
 void FutuSpi::OnReply_UnlockTrade(Futu::u32_t nSerialNo, const Trd_UnlockTrade::Response &stRsp) {
     if (stRsp.rettype() >= 0) {
-        LOG_INFO("Unlock trade successful");
+        writeLog(LogLevel::Info, "Unlock trade successful");
     } else {
-        LOG_ERROR(std::string("Unlock trade failed: ") + stRsp.retmsg());
+        writeLog(LogLevel::Error, std::string("Unlock trade failed: ") + stRsp.retmsg());
     }
     NotifyReply(nSerialNo);
 }
 
 void FutuSpi::OnReply_SubAccPush(Futu::u32_t nSerialNo, const Trd_SubAccPush::Response &stRsp) {
-    LOG_INFO("OnReply_SubAccPush");
+    writeLog(LogLevel::Info, "OnReply_SubAccPush");
     NotifyReply(nSerialNo);
 }
 
@@ -977,7 +977,7 @@ void FutuSpi::OnReply_GetFunds(Futu::u32_t nSerialNo, const Trd_GetFunds::Respon
         std::lock_guard<std::mutex> lock(mutex_);
         funds_responses_[nSerialNo] = stRsp;
     }
-    LOG_INFO("OnReply_GetFunds");
+    writeLog(LogLevel::Info, "OnReply_GetFunds");
     NotifyReply(nSerialNo);
 }
 
@@ -986,12 +986,12 @@ void FutuSpi::OnReply_GetPositionList(Futu::u32_t nSerialNo, const Trd_GetPositi
         std::lock_guard<std::mutex> lock(mutex_);
         position_responses_[nSerialNo] = stRsp;
     }
-    LOG_INFO("OnReply_GetPositionList");
+    writeLog(LogLevel::Info, "OnReply_GetPositionList");
     NotifyReply(nSerialNo);
 }
 
 void FutuSpi::OnReply_GetMaxTrdQtys(Futu::u32_t nSerialNo, const Trd_GetMaxTrdQtys::Response &stRsp) {
-    LOG_INFO("OnReply_GetMaxTrdQtys");
+    writeLog(LogLevel::Info, "OnReply_GetMaxTrdQtys");
     NotifyReply(nSerialNo);
 }
 
@@ -1000,7 +1000,7 @@ void FutuSpi::OnReply_GetOrderList(Futu::u32_t nSerialNo, const Trd_GetOrderList
         std::lock_guard<std::mutex> lock(mutex_);
         order_list_responses_[nSerialNo] = stRsp;
     }
-    LOG_INFO("OnReply_GetOrderList");
+    writeLog(LogLevel::Info, "OnReply_GetOrderList");
     NotifyReply(nSerialNo);
 }
 
@@ -1011,62 +1011,66 @@ void FutuSpi::OnReply_PlaceOrder(Futu::u32_t nSerialNo, const Trd_PlaceOrder::Re
     }
     
     if (stRsp.rettype() >= 0) {
-        LOG_INFO("Place order successful");
+        writeLog(LogLevel::Info, "Place order successful");
     } else {
-        LOG_ERROR(std::string("Place order failed: ") + stRsp.retmsg());
+        writeLog(LogLevel::Error, std::string("Place order failed: ") + stRsp.retmsg());
     }
     NotifyReply(nSerialNo);
 }
 
 void FutuSpi::OnReply_ModifyOrder(Futu::u32_t nSerialNo, const Trd_ModifyOrder::Response &stRsp) {
     if (stRsp.rettype() >= 0) {
-        LOG_INFO("Modify order successful");
+        writeLog(LogLevel::Info, "Modify order successful");
     } else {
-        LOG_ERROR(std::string("Modify order failed: ") + stRsp.retmsg());
+        writeLog(LogLevel::Error, std::string("Modify order failed: ") + stRsp.retmsg());
     }
     NotifyReply(nSerialNo);
 }
 
 void FutuSpi::OnReply_GetOrderFillList(Futu::u32_t nSerialNo, const Trd_GetOrderFillList::Response &stRsp) {
-    LOG_INFO("OnReply_GetOrderFillList");
+    writeLog(LogLevel::Info, "OnReply_GetOrderFillList");
     NotifyReply(nSerialNo);
 }
 
 void FutuSpi::OnReply_GetHistoryOrderList(Futu::u32_t nSerialNo, const Trd_GetHistoryOrderList::Response &stRsp) {
-    LOG_INFO("OnReply_GetHistoryOrderList");
+    writeLog(LogLevel::Info, "OnReply_GetHistoryOrderList");
     NotifyReply(nSerialNo);
 }
 
 void FutuSpi::OnReply_GetHistoryOrderFillList(Futu::u32_t nSerialNo, const Trd_GetHistoryOrderFillList::Response &stRsp) {
-    LOG_INFO("OnReply_GetHistoryOrderFillList");
+    writeLog(LogLevel::Info, "OnReply_GetHistoryOrderFillList");
     NotifyReply(nSerialNo);
 }
 
 void FutuSpi::OnReply_GetMarginRatio(Futu::u32_t nSerialNo, const Trd_GetMarginRatio::Response &stRsp) {
-    LOG_INFO("OnReply_GetMarginRatio");
+    writeLog(LogLevel::Info, "OnReply_GetMarginRatio");
     NotifyReply(nSerialNo);
 }
 
 void FutuSpi::OnReply_GetOrderFee(Futu::u32_t nSerialNo, const Trd_GetOrderFee::Response &stRsp) {
-    LOG_INFO("OnReply_GetOrderFee");
+    writeLog(LogLevel::Info, "OnReply_GetOrderFee");
     NotifyReply(nSerialNo);
 }
 
 void FutuSpi::OnReply_GetFlowSummary(Futu::u32_t nSerialNo, const Trd_FlowSummary::Response& stRsp) {
     (void)stRsp;
-    LOG_INFO("OnReply_GetFlowSummary");
+    writeLog(LogLevel::Info, "OnReply_GetFlowSummary");
     NotifyReply(nSerialNo);
 }
 
 // 交易推送
 void FutuSpi::OnPush_UpdateOrder(const Trd_UpdateOrder::Response &stRsp) {
-    LOG_INFO("OnPush_UpdateOrder");
+    writeLog(LogLevel::Info, "OnPush_UpdateOrder");
     // TODO: 转换并发布订单更新事件
 }
 
 void FutuSpi::OnPush_UpdateOrderFill(const Trd_UpdateOrderFill::Response &stRsp) {
-    LOG_INFO("OnPush_UpdateOrderFill");
+    writeLog(LogLevel::Info, "OnPush_UpdateOrderFill");
     // TODO: 转换并发布成交事件
+}
+
+void FutuSpi::writeLog(LogLevel level, const std::string& message) {
+    this->exchange_->writeLog(level, message);
 }
 
 #endif // ENABLE_FUTU

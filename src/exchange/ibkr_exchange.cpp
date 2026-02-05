@@ -1,8 +1,12 @@
 #include "exchange/ibkr_exchange.h"
 #include "event/event_engine.h"
+#include "event/event_interface.h"
+#include "event/event.h"
 #include "common/object.h"
 #include "utils/logger.h"
 #include <sstream>
+#include <iostream>
+
 
 IBKRExchange::IBKRExchange(const IBKRConfig& config)
     : config_(config), connected_(false) {
@@ -161,9 +165,9 @@ bool IBKRExchange::unsubscribeTick(const std::string& symbol) {
 
 // ========== 历史数据获取 ==========
 
-std::vector<KLine> IBKRExchange::getHistoryKLine(
+std::vector<KlineData> IBKRExchange::getHistoryKLine(
     const std::string& symbol,
-    const std::string& period,
+    const std::string& kline_type,
     int count) {
     
     LOG_INFO("Get IBKR history KLine: " + symbol);
@@ -219,26 +223,31 @@ std::vector<Snapshot> IBKRExchange::getMarketSnapshot(const std::vector<std::str
 
 // ========== 交易接口 ==========
 
-std::string IBKRExchange::placeOrder(const OrderRequest& request) {
+std::string IBKRExchange::placeOrder(
+    const std::string& symbol,
+    const std::string& side,
+    int quantity,
+    const std::string& order_type,
+    double price) {
     std::stringstream ss;
-    ss << "Place IBKR order: " << request.symbol 
-       << " " << request.order_type << " " << request.quantity;
+    ss << "Place IBKR order: " << symbol 
+       << " " << order_type << " " << quantity;
     LOG_INFO(ss.str());
     
     // TODO: 实现下单逻辑
     /*
     Contract contract;
-    contract.symbol = request.symbol;
+    contract.symbol = symbol;
     contract.secType = "STK";
     contract.exchange = "SMART";
     contract.currency = "USD";
     
-    Order order;
-    order.action = (request.direction == "BUY") ? "BUY" : "SELL";
-    order.totalQuantity = request.quantity;
-    order.orderType = (request.order_type == "MARKET") ? "MKT" : "LMT";
-    if (request.order_type == "LIMIT") {
-        order.lmtPrice = request.price;
+    ::Order order;
+    order.action = (side == "BUY") ? "BUY" : "SELL";
+    order.totalQuantity = quantity;
+    order.orderType = (order_type == "MARKET") ? "MKT" : "LMT";
+    if (order_type == "LIMIT") {
+        order.lmtPrice = price;
     }
     
     int order_id = getNextOrderId();
@@ -261,7 +270,7 @@ bool IBKRExchange::cancelOrder(const std::string& order_id) {
     return true;
 }
 
-bool IBKRExchange::modifyOrder(const std::string& order_id, double price, int quantity) {
+bool IBKRExchange::modifyOrder(const std::string& order_id, int new_quantity, double new_price) {
     std::stringstream ss;
     ss << "Modify IBKR order: " << order_id << " price=" << price << " qty=" << quantity;
     LOG_INFO(ss.str());
@@ -273,30 +282,19 @@ bool IBKRExchange::modifyOrder(const std::string& order_id, double price, int qu
 
 // ========== 订单查询 ==========
 
-Order IBKRExchange::getOrder(const std::string& order_id) {
+OrderData IBKRExchange::getOrderStatus(const std::string& order_id) {
     LOG_INFO("Get IBKR order: " + order_id);
     
-    Order order;
+    OrderData order;
     order.order_id = order_id;
     return order;
 }
 
-std::vector<Order> IBKRExchange::getTodayOrders() {
-    LOG_INFO("Get IBKR today orders");
+std::vector<OrderData> IBKRExchange::getOrderHistory(int days) {
+    LOG_INFO("Get IBKR order history");
     
-    // TODO: 查询今日订单
+    // TODO: 查询订单历史
     // client_socket_->reqAllOpenOrders();
-    
-    return {};
-}
-
-std::vector<Order> IBKRExchange::getHistoryOrders(
-    const std::string& start_date,
-    const std::string& end_date) {
-    
-    LOG_INFO("Get IBKR history orders");
-    
-    // TODO: 查询历史订单
     
     return {};
 }
@@ -312,14 +310,6 @@ std::vector<ExchangePosition> IBKRExchange::getPositions() {
     return {};
 }
 
-ExchangePosition IBKRExchange::getPosition(const std::string& symbol) {
-    LOG_INFO("Get IBKR position: " + symbol);
-    
-    ExchangePosition position;
-    position.symbol = symbol;
-    return position;
-}
-
 // ========== 账户查询 ==========
 
 AccountInfo IBKRExchange::getAccountInfo() {
@@ -331,18 +321,37 @@ AccountInfo IBKRExchange::getAccountInfo() {
     AccountInfo info;
     info.account_id = config_.is_simulation ? "DU123456" : "U123456";
     info.total_assets = 100000.0;
-    info.available_cash = 50000.0;
+    info.available_funds = 50000.0;
     info.market_value = 50000.0;
     info.currency = "USD";
     
     return info;
 }
 
+double IBKRExchange::getAvailableFunds() {
+    AccountInfo info = getAccountInfo();
+    return info.available_funds;
+}
+
+std::vector<std::string> IBKRExchange::getMarketStockList() {
+    LOG_INFO("Get IBKR market stock list");
+    // TODO: 实现市场股票列表获取
+    std::vector<std::string> result;
+    return result;
+}
+
+std::map<std::string, Snapshot> IBKRExchange::getBatchSnapshots(const std::vector<std::string>& stock_codes) {
+    LOG_INFO("Get IBKR batch snapshots");
+    // TODO: 实现批量快照获取
+    std::map<std::string, Snapshot> result;
+    return result;
+}
+
 // ========== 数据转换方法 ==========
 
-Order IBKRExchange::convertIBKROrder(const void* ibkr_order) {
+OrderData IBKRExchange::convertIBKROrder(const void* ibkr_order) {
     // TODO: 转换IBKR订单数据
-    Order order;
+    OrderData order;
     return order;
 }
 
@@ -380,7 +389,7 @@ void IBKRExchange::publishKLineEvent(const std::string& symbol, const void* ibkr
     event_engine.publishEvent(EventType::EVENT_KLINE, kline_data);
 }
 
-void IBKRExchange::publishOrderEvent(const Order& order) {
+void IBKRExchange::publishOrderEvent(const OrderData& order) {
     OrderData order_data;
     order_data.order_id = order.order_id;
     order_data.symbol = order.symbol;
@@ -398,4 +407,45 @@ void IBKRExchange::publishTradeEvent(const void* ibkr_execution) {
     auto& event_engine = EventEngine::getInstance();
     event_engine.publishEvent(EventType::EVENT_TRADE_DEAL, trade_data);
 
+}
+
+// ========== 事件引擎 ==========
+
+void IBKRExchange::setEventEngine(IEventEngine* event_engine) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    event_engine_ = event_engine;
+    LOG_INFO("Event engine set for IBKR Exchange");
+}
+
+void IBKRExchange::writeLog(LogLevel level, const std::string& message) {
+    auto current_timestamp =  std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::system_clock::now().time_since_epoch()
+        ).count();
+
+    if (event_engine_) {
+        // 通过事件引擎发布日志
+        // 注意：不能直接通过std::any在dylib和主程序间传递LogData
+        // 因为它们的RTTI类型信息不同，std::any_cast会失败
+        // 改用Event的extras机制来传递日志数据
+        auto event = std::make_shared<Event>(EventType::EVENT_LOG);
+        event->setExtra("level", levelToString(level));
+        event->setExtra("message", "[IBKRExchange] " + message);
+        event->setExtra("timestamp", std::to_string(current_timestamp));
+        event_engine_->putEvent(event);
+    } else {
+
+        auto strLevel = levelToString(level);
+
+        // 回退到直接使用 Logger
+        switch (level) {
+            case LogLevel::Debug:
+            case LogLevel::Info:
+            case LogLevel::Warn:
+                std::cout << current_timestamp << strLevel << message << std::endl;
+                break;
+            case LogLevel::Error:
+                 std::cerr << current_timestamp << strLevel << message << std::endl;
+                break;
+        }
+    }
 }

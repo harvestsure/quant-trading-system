@@ -194,13 +194,7 @@ if(ENABLE_FUTU)
         # 这个库包含 futu_exchange.cpp 和 futu_spi.cpp
         # 编译为动态库，主进程通过 dlopen 动态加载，不在编译时链接
         
-        # 为了避免符号未定义，将项目的基础库源文件也编译到 futu_exchange 中
-        file(GLOB BASE_LIB_SOURCES
-            "${CMAKE_SOURCE_DIR}/src/utils/logger.cpp"
-            "${CMAKE_SOURCE_DIR}/src/utils/stringsUtils.cpp"
-        )
-        
-        add_library(futu_exchange SHARED ${FUTU_SOURCES} ${BASE_LIB_SOURCES})
+        add_library(futu_exchange SHARED ${FUTU_SOURCES})
         
         # 设置包含目录
         target_include_directories(futu_exchange 

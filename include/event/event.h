@@ -7,6 +7,7 @@
 #include <map>
 #include <chrono>
 #include <string>
+#include <typeinfo>
 
  
 
@@ -32,6 +33,16 @@ public:
         } catch (...) {
             return nullptr;
         }
+    }
+    
+    // 调试方法：获取std::any的类型信息
+    const std::type_info& getAnyType() const {
+        return data_.type();
+    }
+    
+    // 检查是否设置了数据
+    bool hasData() const {
+        return !data_.has_value();
     }
     
     // 设置/获取附加信息

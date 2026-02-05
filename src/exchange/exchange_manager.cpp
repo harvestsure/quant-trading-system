@@ -32,6 +32,11 @@ bool ExchangeManager::initExchange(const ExchangeInstanceConfig& config) {
         return false;
     }
     
+    // 如果已经设置了事件引擎，则自动传递给新创建的交易所
+    if (event_engine_) {
+        exchange->setEventEngine(event_engine_);
+    }
+    
     exchanges_[config.name] = exchange;
         
     LOG_INFO("Exchange initialized: " + config.name);
@@ -53,6 +58,20 @@ bool ExchangeManager::initAllExchanges(const std::vector<ExchangeInstanceConfig>
     }
     
     return true;
+}
+
+void ExchangeManager::setEventEngine(IEventEngine* event_engine) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    event_engine_ = event_engine;
+    
+    // 同时传递给所有已创建的交易所
+    for (auto& [name, exchange] : exchanges_) {
+        if (exchange) {
+            exchange->setEventEngine(event_engine);
+        }
+    }
+    
+    LOG_INFO("Event engine set for all exchanges");
 }
 
 std::shared_ptr<IExchange> ExchangeManager::getExchange(const std::string& name) {

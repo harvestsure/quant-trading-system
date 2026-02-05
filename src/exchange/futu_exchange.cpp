@@ -1,5 +1,7 @@
 #include "exchange/futu_exchange.h"
-#include "utils/logger.h"
+#include "event/event_interface.h"
+#include "event/event.h"
+#include "utils/logger_defines.h"
 #include <sstream>
 #include <chrono>
 #include <ctime>
@@ -18,7 +20,7 @@ FutuExchange::FutuExchange(const FutuConfig& config)
     spi_ = nullptr;
     #endif
     
-    LOG_INFO("Futu Exchange initialized");
+    writeLog(LogLevel::Info, "Futu Exchange initialized");
 }
 
 FutuExchange::~FutuExchange() {
@@ -31,11 +33,11 @@ bool FutuExchange::connect() {
     std::lock_guard<std::mutex> lock(mutex_);
     
     if (connected_) {
-        LOG_WARNING("Already connected to Futu API");
+        writeLog(LogLevel::Warn, "Already connected to Futu API");
         return true;
     }
     
-    LOG_INFO("Connecting to Futu API...");
+    writeLog(LogLevel::Info, "Connecting to Futu API...");
     
     #ifdef ENABLE_FUTU
     try {
@@ -44,7 +46,7 @@ bool FutuExchange::connect() {
         
         // 初始化API
         if (!spi_->InitApi(config_.host, config_.port)) {
-            LOG_ERROR("Failed to initialize FTAPI");
+            writeLog(LogLevel::Error, "Failed to initialize FTAPI");
             delete spi_;
             spi_ = nullptr;
             return false;
@@ -52,12 +54,12 @@ bool FutuExchange::connect() {
         
         // 等待连接成功
         
-        LOG_INFO("FTAPI connection initialized");
+        writeLog(LogLevel::Info, "FTAPI connection initialized");
         
         // 如果是实盘交易，需要解锁
         if (!config_.is_simulation && !config_.unlock_password.empty()) {
             if (!unlockTrade()) {
-                LOG_ERROR("Failed to unlock trade");
+                writeLog(LogLevel::Error, "Failed to unlock trade");
                 disconnect();
                 return false;
             }
@@ -65,15 +67,15 @@ bool FutuExchange::connect() {
         
         // 获取账户列表
         if (!getAccountList()) {
-            LOG_WARNING("Failed to get account list");
+            writeLog(LogLevel::Warn, "Failed to get account list");
         }
         
     } catch (const std::exception& e) {
-        LOG_ERROR(std::string("Exception during FTAPI connection: ") + e.what());
+        writeLog(LogLevel::Error, std::string("Exception during FTAPI connection: ") + e.what());
         return false;
     }
     #else
-    LOG_WARNING("FTAPI is not enabled, running in simulation mode");
+    writeLog(LogLevel::Warn, "FTAPI is not enabled, running in simulation mode");
     #endif
     
     connected_ = true;
@@ -83,7 +85,7 @@ bool FutuExchange::connect() {
     if (config_.is_simulation) {
         ss << " (Simulation Mode)";
     }
-    LOG_INFO(ss.str());
+    writeLog(LogLevel::Info, ss.str());
     
     return true;
 }
@@ -104,7 +106,7 @@ bool FutuExchange::disconnect() {
     #endif
     
     connected_ = false;
-    LOG_INFO("Disconnected from Futu API");
+    writeLog(LogLevel::Info, "Disconnected from Futu API");
     
     return true;
 }
@@ -118,38 +120,38 @@ bool FutuExchange::isConnected() const {
 
 bool FutuExchange::unlockTrade() {
     if (config_.unlock_password.empty()) {
-        LOG_ERROR("Unlock password is empty for real trading");
+        writeLog(LogLevel::Error, "Unlock password is empty for real trading");
         return false;
     }
     
     #ifdef ENABLE_FUTU
     if (spi_ == nullptr) {
-        LOG_ERROR("SPI not initialized");
+        writeLog(LogLevel::Error, "SPI not initialized");
         return false;
     }
     
     try {
         Futu::u32_t serial_no = spi_->SendUnlockTrade(config_.unlock_password);
         if (serial_no == 0) {
-            LOG_ERROR("Failed to send unlock trade request");
+            writeLog(LogLevel::Error, "Failed to send unlock trade request");
             return false;
         }
         
         // 等待响应
         if (!spi_->WaitForReply(serial_no, 5000)) {
-            LOG_ERROR("Unlock trade timeout");
+            writeLog(LogLevel::Error, "Unlock trade timeout");
             return false;
         }
         
-        LOG_INFO("Trade unlocked successfully");
+        writeLog(LogLevel::Info, "Trade unlocked successfully");
         return true;
         
     } catch (const std::exception& e) {
-        LOG_ERROR(std::string("Exception during unlock trade: ") + e.what());
+        writeLog(LogLevel::Error, std::string("Exception during unlock trade: ") + e.what());
         return false;
     }
     #else
-    LOG_WARNING("FTAPI is not enabled");
+    writeLog(LogLevel::Warn, "FTAPI is not enabled");
     return false;
     #endif
 }
@@ -157,20 +159,20 @@ bool FutuExchange::unlockTrade() {
 bool FutuExchange::getAccountList() {
     #ifdef ENABLE_FUTU
     if (spi_ == nullptr) {
-        LOG_ERROR("SPI not initialized");
+        writeLog(LogLevel::Error, "SPI not initialized");
         return false;
     }
     
     try {
         Futu::u32_t serial_no = spi_->SendGetAccList();
         if (serial_no == 0) {
-            LOG_ERROR("Failed to send get account list request");
+            writeLog(LogLevel::Error, "Failed to send get account list request");
             return false;
         }
         
         // 等待响应
         if (!spi_->WaitForReply(serial_no, 5000)) {
-            LOG_ERROR("Get account list timeout");
+            writeLog(LogLevel::Error, "Get account list timeout");
             return false;
         }
         
@@ -184,7 +186,7 @@ bool FutuExchange::getAccountList() {
                     const auto& s2c = rsp.s2c();
                     int acc_count = s2c.acclist_size();
                     
-                    LOG_INFO(std::string("Found ") + std::to_string(acc_count) + " accounts");
+                    writeLog(LogLevel::Info, std::string("Found ") + std::to_string(acc_count) + " accounts");
                     
                     for (int i = 0; i < acc_count; ++i) {
                         const auto& acc = s2c.acclist(i);
@@ -194,7 +196,7 @@ bool FutuExchange::getAccountList() {
                         ss << "Account " << i << ": ID=" << acc.accid() 
                            << ", TrdEnv=" << acc.trdenv()
                            << ", TrdMarket=" << acc.trdmarketauthlist_size();
-                        LOG_INFO(ss.str());
+                        writeLog(LogLevel::Info, ss.str());
                     }
                 }
                 spi_->acc_list_responses_.erase(it);
@@ -204,11 +206,11 @@ bool FutuExchange::getAccountList() {
         return true;
         
     } catch (const std::exception& e) {
-        LOG_ERROR(std::string("Exception during get account list: ") + e.what());
+        writeLog(LogLevel::Error, std::string("Exception during get account list: ") + e.what());
         return false;
     }
     #else
-    LOG_WARNING("FTAPI is not enabled");
+    writeLog(LogLevel::Warn, "FTAPI is not enabled");
     return false;
     #endif
 }
@@ -279,7 +281,7 @@ int32_t FutuExchange::convertKLineType(const std::string& kline_type) {
 
 AccountInfo FutuExchange::getAccountInfo() {
     if (!connected_) {
-        LOG_ERROR("Not connected to exchange");
+        writeLog(LogLevel::Error, "Not connected to exchange");
         return AccountInfo();
     }
     
@@ -287,12 +289,12 @@ AccountInfo FutuExchange::getAccountInfo() {
     
     #ifdef ENABLE_FUTU
     if (spi_ == nullptr) {
-        LOG_ERROR("SPI not initialized");
+        writeLog(LogLevel::Error, "SPI not initialized");
         return info;
     }
     
     if (account_ids_.empty()) {
-        LOG_ERROR("No account available");
+        writeLog(LogLevel::Error, "No account available");
         return info;
     }
     
@@ -304,13 +306,13 @@ AccountInfo FutuExchange::getAccountInfo() {
             config_.is_simulation ? Trd_Common::TrdEnv_Simulate : Trd_Common::TrdEnv_Real,
             Trd_Common::TrdMarket_HK);
         if (serial_no == 0) {
-            LOG_ERROR("Failed to send get funds request");
+            writeLog(LogLevel::Error, "Failed to send get funds request");
             return info;
         }
         
         // 等待响应
         if (!spi_->WaitForReply(serial_no, 5000)) {
-            LOG_ERROR("Get funds timeout");
+            writeLog(LogLevel::Error, "Get funds timeout");
             return info;
         }
         
@@ -337,17 +339,17 @@ AccountInfo FutuExchange::getAccountInfo() {
         }
         
     } catch (const std::exception& e) {
-        LOG_ERROR(std::string("Exception during get account info: ") + e.what());
+        writeLog(LogLevel::Error, std::string("Exception during get account info: ") + e.what());
     }
     #endif
     
-    LOG_INFO("Get account info");
+    writeLog(LogLevel::Info, "Get account info");
     return info;
 }
 
 std::vector<ExchangePosition> FutuExchange::getPositions() {
     if (!connected_) {
-        LOG_ERROR("Not connected to exchange");
+        writeLog(LogLevel::Error, "Not connected to exchange");
         return {};
     }
     
@@ -355,12 +357,12 @@ std::vector<ExchangePosition> FutuExchange::getPositions() {
     
     #ifdef ENABLE_FUTU
     if (spi_ == nullptr) {
-        LOG_ERROR("Trd API not initialized");
+        writeLog(LogLevel::Error, "Trd API not initialized");
         return positions;
     }
     
     if (account_ids_.empty()) {
-        LOG_ERROR("No account available");
+        writeLog(LogLevel::Error, "No account available");
         return positions;
     }
     
@@ -372,13 +374,13 @@ std::vector<ExchangePosition> FutuExchange::getPositions() {
             config_.is_simulation ? Trd_Common::TrdEnv_Simulate : Trd_Common::TrdEnv_Real,
             Trd_Common::TrdMarket_HK);
         if (serial_no == 0) {
-            LOG_ERROR("Failed to send get position list request");
+            writeLog(LogLevel::Error, "Failed to send get position list request");
             return positions;
         }
         
         // 等待响应
         if (!spi_->WaitForReply(serial_no, 5000)) {
-            LOG_ERROR("Get position list timeout");
+            writeLog(LogLevel::Error, "Get position list timeout");
             return positions;
         }
         
@@ -414,11 +416,11 @@ std::vector<ExchangePosition> FutuExchange::getPositions() {
         }
         
     } catch (const std::exception& e) {
-        LOG_ERROR(std::string("Exception during get positions: ") + e.what());
+        writeLog(LogLevel::Error, std::string("Exception during get positions: ") + e.what());
     }
     #endif
     
-    LOG_INFO(std::string("Queried ") + std::to_string(positions.size()) + " positions");
+    writeLog(LogLevel::Info, std::string("Queried ") + std::to_string(positions.size()) + " positions");
     return positions;
 }
 
@@ -437,7 +439,7 @@ std::string FutuExchange::placeOrder(
     double price) {
     
     if (!connected_) {
-        LOG_ERROR("Not connected to exchange");
+        writeLog(LogLevel::Error, "Not connected to exchange");
         return "";
     }
     
@@ -446,18 +448,18 @@ std::string FutuExchange::placeOrder(
     if (order_type == "LIMIT") {
         ss << " @ " << price;
     }
-    LOG_INFO(ss.str());
+    writeLog(LogLevel::Info, ss.str());
     
     std::string order_id = "";
     
     #ifdef ENABLE_FUTU
     if (spi_ == nullptr) {
-        LOG_ERROR("SPI not initialized");
+        writeLog(LogLevel::Error, "SPI not initialized");
         return order_id;
     }
     
     if (account_ids_.empty()) {
-        LOG_ERROR("No account available");
+        writeLog(LogLevel::Error, "No account available");
         return order_id;
     }
     
@@ -488,13 +490,13 @@ std::string FutuExchange::placeOrder(
             Trd_Common::TrdMarket_HK,
             security, order_side, order_type_val, quantity, price);
         if (serial_no == 0) {
-            LOG_ERROR("Failed to send place order request");
+            writeLog(LogLevel::Error, "Failed to send place order request");
             return order_id;
         }
         
         // 等待响应
         if (!spi_->WaitForReply(serial_no, 5000)) {
-            LOG_ERROR("Place order timeout");
+            writeLog(LogLevel::Error, "Place order timeout");
             return order_id;
         }
         
@@ -506,16 +508,16 @@ std::string FutuExchange::placeOrder(
                 const auto& rsp = it->second;
                 if (rsp.rettype() >= 0 && rsp.has_s2c()) {
                     order_id = std::to_string(rsp.s2c().orderid());
-                    LOG_INFO(std::string("Order placed successfully: ") + order_id);
+                    writeLog(LogLevel::Info, std::string("Order placed successfully: ") + order_id);
                 } else {
-                    LOG_ERROR(std::string("Place order failed: ") + rsp.retmsg());
+                    writeLog(LogLevel::Error, std::string("Place order failed: ") + rsp.retmsg());
                 }
                 spi_->place_order_responses_.erase(it);
             }
         }
         
     } catch (const std::exception& e) {
-        LOG_ERROR(std::string("Exception during place order: ") + e.what());
+        writeLog(LogLevel::Error, std::string("Exception during place order: ") + e.what());
     }
     #endif
     
@@ -524,18 +526,18 @@ std::string FutuExchange::placeOrder(
 
 bool FutuExchange::cancelOrder(const std::string& order_id) {
     if (!connected_) {
-        LOG_ERROR("Not connected to exchange");
+        writeLog(LogLevel::Error, "Not connected to exchange");
         return false;
     }
     
     #ifdef ENABLE_FUTU
     if (spi_ == nullptr) {
-        LOG_ERROR("SPI not initialized");
+        writeLog(LogLevel::Error, "SPI not initialized");
         return false;
     }
     
     if (account_ids_.empty()) {
-        LOG_ERROR("No account available");
+        writeLog(LogLevel::Error, "No account available");
         return false;
     }
     
@@ -547,43 +549,43 @@ bool FutuExchange::cancelOrder(const std::string& order_id) {
             config_.is_simulation ? Trd_Common::TrdEnv_Simulate : Trd_Common::TrdEnv_Real,
             order_id_num);
         if (serial_no == 0) {
-            LOG_ERROR("Failed to send cancel order request");
+            writeLog(LogLevel::Error, "Failed to send cancel order request");
             return false;
         }
         
         // 等待响应
         if (!spi_->WaitForReply(serial_no, 5000)) {
-            LOG_ERROR("Cancel order timeout");
+            writeLog(LogLevel::Error, "Cancel order timeout");
             return false;
         }
         
-        LOG_INFO(std::string("Order cancelled: ") + order_id);
+        writeLog(LogLevel::Info, std::string("Order cancelled: ") + order_id);
         return true;
         
     } catch (const std::exception& e) {
-        LOG_ERROR(std::string("Exception during cancel order: ") + e.what());
+        writeLog(LogLevel::Error, std::string("Exception during cancel order: ") + e.what());
         return false;
     }
     #else
-    LOG_INFO(std::string("Order cancelled (simulation): ") + order_id);
+    writeLog(LogLevel::Info, std::string("Order cancelled (simulation): ") + order_id);
     return true;
     #endif
 }
 
 bool FutuExchange::modifyOrder(const std::string& order_id, int new_quantity, double new_price) {
     if (!connected_) {
-        LOG_ERROR("Not connected to exchange");
+        writeLog(LogLevel::Error, "Not connected to exchange");
         return false;
     }
     
     #ifdef ENABLE_FUTU
     if (spi_ == nullptr) {
-        LOG_ERROR("SPI not initialized");
+        writeLog(LogLevel::Error, "SPI not initialized");
         return false;
     }
     
     if (account_ids_.empty()) {
-        LOG_ERROR("No account available");
+        writeLog(LogLevel::Error, "No account available");
         return false;
     }
     
@@ -595,29 +597,29 @@ bool FutuExchange::modifyOrder(const std::string& order_id, int new_quantity, do
             config_.is_simulation ? Trd_Common::TrdEnv_Simulate : Trd_Common::TrdEnv_Real,
             order_id_num, new_quantity, new_price);
         if (serial_no == 0) {
-            LOG_ERROR("Failed to send modify order request");
+            writeLog(LogLevel::Error, "Failed to send modify order request");
             return false;
         }
         
         // 等待响应
         if (!spi_->WaitForReply(serial_no, 5000)) {
-            LOG_ERROR("Modify order timeout");
+            writeLog(LogLevel::Error, "Modify order timeout");
             return false;
         }
         
         std::stringstream ss;
         ss << "Order modified: " << order_id << " new_qty=" << new_quantity << " new_price=" << new_price;
-        LOG_INFO(ss.str());
+        writeLog(LogLevel::Info, ss.str());
         return true;
         
     } catch (const std::exception& e) {
-        LOG_ERROR(std::string("Exception during modify order: ") + e.what());
+        writeLog(LogLevel::Error, std::string("Exception during modify order: ") + e.what());
         return false;
     }
     #else
     std::stringstream ss;
     ss << "Order modified (simulation): " << order_id << " new_qty=" << new_quantity << " new_price=" << new_price;
-    LOG_INFO(ss.str());
+    writeLog(LogLevel::Info, ss.str());
     return true;
     #endif
 }
@@ -650,13 +652,13 @@ std::vector<OrderData> FutuExchange::getOrderHistory(int days) {
 
 bool FutuExchange::subscribeKLine(const std::string& symbol, const std::string& kline_type) {
     if (!connected_) {
-        LOG_ERROR("Not connected to exchange");
+        writeLog(LogLevel::Error, "Not connected to exchange");
         return false;
     }
     
     #ifdef ENABLE_FUTU
     if (spi_ == nullptr) {
-        LOG_ERROR("SPI not initialized");
+        writeLog(LogLevel::Error, "SPI not initialized");
         return false;
     }
     
@@ -667,29 +669,29 @@ bool FutuExchange::subscribeKLine(const std::string& symbol, const std::string& 
         
         Futu::u32_t serial_no = spi_->SendSubscribeKLine(security, kl_type);
         if (serial_no == 0) {
-            LOG_ERROR("Failed to send subscribe KLine request");
+            writeLog(LogLevel::Error, "Failed to send subscribe KLine request");
             return false;
         }
         
         // 等待响应
         if (!spi_->WaitForReply(serial_no, 5000)) {
-            LOG_ERROR("Subscribe KLine timeout");
+            writeLog(LogLevel::Error, "Subscribe KLine timeout");
             return false;
         }
         
         std::stringstream ss;
         ss << "Subscribed KLine: " << symbol << " " << kline_type;
-        LOG_INFO(ss.str());
+        writeLog(LogLevel::Info, ss.str());
         return true;
         
     } catch (const std::exception& e) {
-        LOG_ERROR(std::string("Exception during subscribe KLine: ") + e.what());
+        writeLog(LogLevel::Error, std::string("Exception during subscribe KLine: ") + e.what());
         return false;
     }
     #else
     std::stringstream ss;
     ss << "Subscribed KLine (simulation): " << symbol << " " << kline_type;
-    LOG_INFO(ss.str());
+    writeLog(LogLevel::Info, ss.str());
     return true;
     #endif
 }
@@ -709,36 +711,36 @@ bool FutuExchange::unsubscribeKLine(const std::string& symbol) {
         
         Futu::u32_t serial_no = spi_->SendUnsubscribeKLine(security);
         if (serial_no == 0) {
-            LOG_ERROR("Failed to send unsubscribe KLine request");
+            writeLog(LogLevel::Error, "Failed to send unsubscribe KLine request");
             return false;
         }
         
         std::stringstream ss;
         ss << "Unsubscribed KLine: " << symbol;
-        LOG_INFO(ss.str());
+        writeLog(LogLevel::Info, ss.str());
         return true;
         
     } catch (const std::exception& e) {
-        LOG_ERROR(std::string("Exception during unsubscribe KLine: ") + e.what());
+        writeLog(LogLevel::Error, std::string("Exception during unsubscribe KLine: ") + e.what());
         return false;
     }
     #else
     std::stringstream ss;
     ss << "Unsubscribed KLine (simulation): " << symbol;
-    LOG_INFO(ss.str());
+    writeLog(LogLevel::Info, ss.str());
     return true;
     #endif
 }
 
 bool FutuExchange::subscribeTick(const std::string& symbol) {
     if (!connected_) {
-        LOG_ERROR("Not connected to exchange");
+        writeLog(LogLevel::Error, "Not connected to exchange");
         return false;
     }
     
     #ifdef ENABLE_FUTU
     if (spi_ == nullptr) {
-        LOG_ERROR("SPI not initialized");
+        writeLog(LogLevel::Error, "SPI not initialized");
         return false;
     }
     
@@ -747,29 +749,29 @@ bool FutuExchange::subscribeTick(const std::string& symbol) {
         
         Futu::u32_t serial_no = spi_->SendSubscribeTick(security);
         if (serial_no == 0) {
-            LOG_ERROR("Failed to send subscribe Tick request");
+            writeLog(LogLevel::Error, "Failed to send subscribe Tick request");
             return false;
         }
         
         // 等待响应
         if (!spi_->WaitForReply(serial_no, 5000)) {
-            LOG_ERROR("Subscribe Tick timeout");
+            writeLog(LogLevel::Error, "Subscribe Tick timeout");
             return false;
         }
         
         std::stringstream ss;
         ss << "Subscribed Tick: " << symbol;
-        LOG_INFO(ss.str());
+        writeLog(LogLevel::Info, ss.str());
         return true;
         
     } catch (const std::exception& e) {
-        LOG_ERROR(std::string("Exception during subscribe Tick: ") + e.what());
+        writeLog(LogLevel::Error, std::string("Exception during subscribe Tick: ") + e.what());
         return false;
     }
     #else
     std::stringstream ss;
     ss << "Subscribed Tick (simulation): " << symbol;
-    LOG_INFO(ss.str());
+    writeLog(LogLevel::Info, ss.str());
     return true;
     #endif
 }
@@ -791,7 +793,7 @@ std::vector<KlineData> FutuExchange::getHistoryKLine(
     int count) {
     
     if (!connected_) {
-        LOG_ERROR("Not connected to exchange");
+        writeLog(LogLevel::Error, "Not connected to exchange");
         return {};
     }
     
@@ -799,7 +801,7 @@ std::vector<KlineData> FutuExchange::getHistoryKLine(
     
     #ifdef ENABLE_FUTU
     if (spi_ == nullptr) {
-        LOG_ERROR("SPI not initialized");
+        writeLog(LogLevel::Error, "SPI not initialized");
         return klines;
     }
     
@@ -809,13 +811,13 @@ std::vector<KlineData> FutuExchange::getHistoryKLine(
         
         Futu::u32_t serial_no = spi_->SendGetHistoryKLine(security, kl_type, count);
         if (serial_no == 0) {
-            LOG_ERROR("Failed to send get history KLine request");
+            writeLog(LogLevel::Error, "Failed to send get history KLine request");
             return klines;
         }
         
         // 等待响应
         if (!spi_->WaitForReply(serial_no, 10000)) {
-            LOG_ERROR("Get history KLine timeout");
+            writeLog(LogLevel::Error, "Get history KLine timeout");
             return klines;
         }
         
@@ -852,17 +854,17 @@ std::vector<KlineData> FutuExchange::getHistoryKLine(
         }
         
     } catch (const std::exception& e) {
-        LOG_ERROR(std::string("Exception during get history KLine: ") + e.what());
+        writeLog(LogLevel::Error, std::string("Exception during get history KLine: ") + e.what());
     }
     #endif
     
-    LOG_INFO(std::string("Got ") + std::to_string(klines.size()) + " history KLines");
+    writeLog(LogLevel::Info, std::string("Got ") + std::to_string(klines.size()) + " history KLines");
     return klines;
 }
 
 Snapshot FutuExchange::getSnapshot(const std::string& symbol) {
     if (!connected_) {
-        LOG_ERROR("Not connected to exchange");
+        writeLog(LogLevel::Error, "Not connected to exchange");
         return Snapshot();
     }
     
@@ -870,7 +872,7 @@ Snapshot FutuExchange::getSnapshot(const std::string& symbol) {
     
     #ifdef ENABLE_FUTU
     if (spi_ == nullptr) {
-        LOG_ERROR("SPI not initialized");
+        writeLog(LogLevel::Error, "SPI not initialized");
         return snapshot;
     }
     
@@ -880,13 +882,13 @@ Snapshot FutuExchange::getSnapshot(const std::string& symbol) {
         
         Futu::u32_t serial_no = spi_->SendGetSecuritySnapshot(securities);
         if (serial_no == 0) {
-            LOG_ERROR("Failed to send get snapshot request");
+            writeLog(LogLevel::Error, "Failed to send get snapshot request");
             return snapshot;
         }
         
         // 等待响应
         if (!spi_->WaitForReply(serial_no, 5000)) {
-            LOG_ERROR("Get snapshot timeout");
+            writeLog(LogLevel::Error, "Get snapshot timeout");
             return snapshot;
         }
         
@@ -927,7 +929,7 @@ Snapshot FutuExchange::getSnapshot(const std::string& symbol) {
         }
         
     } catch (const std::exception& e) {
-        LOG_ERROR(std::string("Exception during get snapshot: ") + e.what());
+        writeLog(LogLevel::Error, std::string("Exception during get snapshot: ") + e.what());
     }
     #endif
     
@@ -938,7 +940,7 @@ Snapshot FutuExchange::getSnapshot(const std::string& symbol) {
 
 std::vector<std::string> FutuExchange::getMarketStockList() {
     if (!connected_) {
-        LOG_ERROR("Not connected to exchange");
+        writeLog(LogLevel::Error, "Not connected to exchange");
         return {};
     }
     
@@ -946,7 +948,7 @@ std::vector<std::string> FutuExchange::getMarketStockList() {
     
     #ifdef ENABLE_FUTU
     if (spi_ == nullptr) {
-        LOG_ERROR("SPI not initialized");
+        writeLog(LogLevel::Error, "SPI not initialized");
         return stocks;
     }
     
@@ -965,19 +967,19 @@ std::vector<std::string> FutuExchange::getMarketStockList() {
         
         std::stringstream ss;
         ss << "Getting stock basic info for market: " << config_.market;
-        LOG_INFO(ss.str());
+        writeLog(LogLevel::Info, ss.str());
         
         // 使用 GetStaticInfo 接口获取市场中的所有股票（对应 Python 的 get_stock_basicinfo）
         // 传入市场类型和股票类型（SecurityType_Eqty 表示股票）
         Futu::u32_t serial_no = spi_->SendGetStaticInfo(market_type, Qot_Common::SecurityType_Eqty);
         if (serial_no == 0) {
-            LOG_ERROR("Failed to send get static info request");
+            writeLog(LogLevel::Error, "Failed to send get static info request");
             return stocks;
         }
         
         // 等待响应（15秒超时，因为股票列表可能很大）
         if (!spi_->WaitForReply(serial_no, 15000)) {
-            LOG_ERROR("Get static info timeout");
+            writeLog(LogLevel::Error, "Get static info timeout");
             return stocks;
         }
         
@@ -993,7 +995,7 @@ std::vector<std::string> FutuExchange::getMarketStockList() {
                     
                     std::stringstream log_ss;
                     log_ss << "Found " << static_info_count << " stocks in market " << config_.market;
-                    LOG_INFO(log_ss.str());
+                    writeLog(LogLevel::Info, log_ss.str());
                     
                     for (int i = 0; i < static_info_count; ++i) {
                         const auto& info = s2c.staticinfolist(i);
@@ -1006,14 +1008,14 @@ std::vector<std::string> FutuExchange::getMarketStockList() {
                         }
                     }
                 } else {
-                    LOG_ERROR(std::string("Get static info failed: ") + rsp.retmsg());
+                    writeLog(LogLevel::Error, std::string("Get static info failed: ") + rsp.retmsg());
                 }
                 spi_->static_info_responses_.erase(it);
             }
         }
         
     } catch (const std::exception& e) {
-        LOG_ERROR(std::string("Exception during get market stock list: ") + e.what());
+        writeLog(LogLevel::Error, std::string("Exception during get market stock list: ") + e.what());
     }
     #else
     LOG_WARNING("FTAPI is not enabled, returning sample stocks");
@@ -1026,7 +1028,7 @@ std::vector<std::string> FutuExchange::getMarketStockList() {
     
     std::stringstream ss;
     ss << "Retrieved " << stocks.size() << " stocks from market " << config_.market;
-    LOG_INFO(ss.str());
+    writeLog(LogLevel::Info, ss.str());
     
     return stocks;
 }
@@ -1035,7 +1037,7 @@ std::map<std::string, Snapshot> FutuExchange::getBatchSnapshots(
     const std::vector<std::string>& stock_codes) {
     
     if (!connected_) {
-        LOG_ERROR("Not connected to exchange");
+        writeLog(LogLevel::Error, "Not connected to exchange");
         return {};
     }
     
@@ -1043,7 +1045,7 @@ std::map<std::string, Snapshot> FutuExchange::getBatchSnapshots(
     
     #ifdef ENABLE_FUTU
     if (spi_ == nullptr) {
-        LOG_ERROR("SPI not initialized");
+        writeLog(LogLevel::Error, "SPI not initialized");
         return snapshots;
     }
     
@@ -1056,13 +1058,13 @@ std::map<std::string, Snapshot> FutuExchange::getBatchSnapshots(
         
         Futu::u32_t serial_no = spi_->SendGetSecuritySnapshot(securities);
         if (serial_no == 0) {
-            LOG_ERROR("Failed to send batch get snapshot request");
+            writeLog(LogLevel::Error, "Failed to send batch get snapshot request");
             return snapshots;
         }
         
         // 等待响应
         if (!spi_->WaitForReply(serial_no, 10000)) {
-            LOG_ERROR("Batch get snapshot timeout");
+            writeLog(LogLevel::Error, "Batch get snapshot timeout");
             return snapshots;
         }
         
@@ -1109,11 +1111,11 @@ std::map<std::string, Snapshot> FutuExchange::getBatchSnapshots(
         }
         
     } catch (const std::exception& e) {
-        LOG_ERROR(std::string("Exception during batch get snapshots: ") + e.what());
+        writeLog(LogLevel::Error, std::string("Exception during batch get snapshots: ") + e.what());
     }
     #endif
     
-    LOG_INFO(std::string("Got ") + std::to_string(snapshots.size()) + " snapshots");
+    writeLog(LogLevel::Info, std::string("Got ") + std::to_string(snapshots.size()) + " snapshots");
     return snapshots;
 }
 
@@ -1143,6 +1145,46 @@ IExchange* GetExchangeInstance(const std::map<std::string, std::string>& config)
         futu_config.market = config.at("market");
     }
     
-    LOG_INFO("Creating Futu Exchange instance");
     return new FutuExchange(futu_config);
+}
+
+// ========== 事件引擎 ==========
+
+void FutuExchange::setEventEngine(IEventEngine* event_engine) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    event_engine_ = event_engine;
+    writeLog(LogLevel::Info, "Event engine set for Futu Exchange");
+}
+
+void FutuExchange::writeLog(LogLevel level, const std::string& message) {
+    auto current_timestamp =  std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::system_clock::now().time_since_epoch()
+        ).count();
+
+    if (event_engine_) {
+        // 通过事件引擎发布日志
+        // 注意：不能直接通过std::any在dylib和主程序间传递LogData
+        // 因为它们的RTTI类型信息不同，std::any_cast会失败
+        // 改用Event的extras机制来传递日志数据
+        auto event = std::make_shared<Event>(EventType::EVENT_LOG);
+        event->setExtra("level", levelToString(level));
+        event->setExtra("message", "[FutuExchange] " + message);
+        event->setExtra("timestamp", std::to_string(current_timestamp));
+        event_engine_->putEvent(event);
+    } else {
+
+        auto strLevel = levelToString(level);
+
+        // 回退到直接使用 Logger
+        switch (level) {
+            case LogLevel::Debug:
+            case LogLevel::Info:
+            case LogLevel::Warn:
+                std::cout << current_timestamp << strLevel << message << std::endl;
+                break;
+            case LogLevel::Error:
+                 std::cerr << current_timestamp << strLevel << message << std::endl;
+                break;
+        }
+    }
 }

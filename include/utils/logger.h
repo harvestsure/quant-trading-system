@@ -7,14 +7,8 @@
 #include <chrono>
 #include <iomanip>
 #include <filesystem>
-
-
-enum class LogLevel {
-    Debug,
-    Info,
-    Warn,
-    Error
-};
+#include "logger_defines.h"
+#include "event/event_interface.h"
 
 class Logger {
 public:
@@ -22,6 +16,8 @@ public:
     
     void log(LogLevel level, const std::string& message);
     void setLogLevel(LogLevel level) { min_level_ = level; }
+
+    void handld_logs(const EventPtr&);
     
     // 禁止拷贝
     Logger(const Logger&) = delete;
@@ -36,7 +32,6 @@ private:
     std::mutex mutex_;
     
     std::string getCurrentTime();
-    std::string levelToString(LogLevel level);
 };
 
 // 便捷宏

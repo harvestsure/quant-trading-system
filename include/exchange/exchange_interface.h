@@ -8,6 +8,9 @@
 #include "common/defines.h"
 #include "common/object.h"
 
+// 前向声明
+class IEventEngine;
+
 #define ExchangeClass "GetExchangeClass"
 #define ExchangeInstance "GetExchangeInstance"
 
@@ -93,6 +96,10 @@ public:
     // 交易所实现类应该将原始数据转换为统一格式并发布事件
     // 不再使用回调，改用事件引擎
     // 订阅行情后，交易所会自动将数据转换并发布到事件引擎
+    
+    // ========== 事件引擎 ==========
+    virtual void setEventEngine(IEventEngine* event_engine) = 0;
+    virtual IEventEngine* getEventEngine() const = 0;
 };
 
 // 交易所工厂

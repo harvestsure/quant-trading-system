@@ -29,44 +29,58 @@ public:
     bool connect() override;
     bool disconnect() override;
     bool isConnected() const override;
+    std::string getName() const override { return "ibkr"; }
+    std::string getDisplayName() const override { return "Interactive Brokers"; }
     
-    // ========== 市场数据订阅 ==========
-    bool subscribeKLine(const std::string& symbol, const std::string& period) override;
+    // ========== 账户相关 ==========
+    AccountInfo getAccountInfo() override;
+    std::vector<ExchangePosition> getPositions() override;
+    double getAvailableFunds() override;
+    
+    // ========== 交易相关 ==========
+    std::string placeOrder(
+        const std::string& symbol,
+        const std::string& side,
+        int quantity,
+        const std::string& order_type,
+        double price = 0.0
+    ) override;
+    
+    bool cancelOrder(const std::string& order_id) override;
+    bool modifyOrder(const std::string& order_id, int new_quantity, double new_price) override;
+    OrderData getOrderStatus(const std::string& order_id) override;
+    std::vector<OrderData> getOrderHistory(int days = 1) override;
+    
+    // ========== 行情数据相关 ==========
+    bool subscribeKLine(const std::string& symbol, const std::string& kline_type) override;
     bool unsubscribeKLine(const std::string& symbol) override;
     bool subscribeTick(const std::string& symbol) override;
     bool unsubscribeTick(const std::string& symbol) override;
     
-    // ========== 历史数据获取 ==========
-    std::vector<KLine> getHistoryKLine(
+    std::vector<KlineData> getHistoryKLine(
         const std::string& symbol,
-        const std::string& period,
-        int count) override;
+        const std::string& kline_type,
+        int count
+    ) override;
     
-    // ========== 行情快照 ==========
     Snapshot getSnapshot(const std::string& symbol) override;
-    std::vector<Snapshot> getMarketSnapshot(const std::vector<std::string>& symbols) override;
     
-    // ========== 交易接口 ==========
-    std::string placeOrder(const OrderRequest& request) override;
-    bool cancelOrder(const std::string& order_id) override;
-    bool modifyOrder(const std::string& order_id, double price, int quantity) override;
+    // ========== 市场扫描相关 ==========
+    std::vector<std::string> getMarketStockList() override;
+    std::map<std::string, Snapshot> getBatchSnapshots(const std::vector<std::string>& stock_codes) override;
     
-    // ========== 订单查询 ==========
-    Order getOrder(const std::string& order_id) override;
-    std::vector<Order> getTodayOrders() override;
-    std::vector<Order> getHistoryOrders(const std::string& start_date, const std::string& end_date) override;
-    
-    // ========== 持仓查询 ==========
-    std::vector<ExchangePosition> getPositions() override;
-    ExchangePosition getPosition(const std::string& symbol) override;
-    
-    // ========== 账户查询 ==========
-    AccountInfo getAccountInfo() override;
+    // ========== 事件引擎 ==========
+    void setEventEngine(IEventEngine* event_engine) override;
+    IEventEngine* getEventEngine() const override { return event_engine_; }
     
 private:
     IBKRConfig config_;
     bool connected_;
     mutable std::mutex mutex_;
+    IEventEngine* event_engine_ = nullptr;  // 事件引擎指针
+    
+    // 辅助方法：通过事件引擎发布日志
+    void writeLog(LogLevel level, const std::string& message);
     
     // TWS API相关成员变量
     // TODO: 添加TWS API的客户端对象
@@ -74,14 +88,14 @@ private:
     // EWrapper* wrapper_;
     
     // 数据转换方法（将IBKR原始数据转换为统一格式）
-    Order convertIBKROrder(const void* ibkr_order);
+    OrderData convertIBKROrder(const void* ibkr_order);
     Snapshot convertIBKRSnapshot(const void* ibkr_snapshot);
     ExchangePosition convertIBKRPosition(const void* ibkr_position);
     
     // 事件发布方法（内部使用）
     void publishTickEvent(const std::string& symbol, const void* ibkr_tick);
     void publishKLineEvent(const std::string& symbol, const void* ibkr_bar);
-    void publishOrderEvent(const Order& order);
+    void publishOrderEvent(const OrderData& order);
     void publishTradeEvent(const void* ibkr_execution);
 };
 

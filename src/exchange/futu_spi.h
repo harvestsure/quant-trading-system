@@ -4,6 +4,7 @@
 
 #include "FTAPI.h"
 #include "FTSPI.h"
+#include "utils/logger_defines.h"
 #include <map>
 #include <mutex>
 #include <condition_variable>
@@ -137,6 +138,9 @@ public:
     std::map<Futu::u32_t, Qot_GetStaticInfo::Response> static_info_responses_;
     
     friend class FutuExchange;  // 允许 FutuExchange 访问 mutex_ 和响应数据
+
+protected:
+    void writeLog(LogLevel level, const std::string& message);
     
 private:
     FutuExchange* exchange_;

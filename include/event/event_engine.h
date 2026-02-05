@@ -1,8 +1,7 @@
 #pragma once
 
 #include "event.h"
-#include "event_type.h"
-#include <functional>
+#include "event_interface.h"
 #include <map>
 #include <vector>
 #include <queue>
@@ -14,28 +13,25 @@
 
  
 
-// 事件处理器类型定义
-using EventHandler = std::function<void(const EventPtr&)>;
-
 // 事件引擎
-class EventEngine {
+class EventEngine : public IEventEngine {
 public:
     static EventEngine& getInstance();
     
     // 启动/停止事件引擎
-    void start();
-    void stop();
-    bool isRunning() const { return running_; }
+    void start() override;
+    void stop() override;
+    bool isRunning() const override { return running_; }
     
     // 注册事件处理器
     // 返回处理器ID，用于后续注销
-    int registerHandler(EventType type, EventHandler handler);
+    int registerHandler(EventType type, EventHandler handler) override;
     
     // 注销事件处理器
-    void unregisterHandler(EventType type, int handler_id);
+    void unregisterHandler(EventType type, int handler_id) override;
     
     // 发布事件
-    void putEvent(const EventPtr& event);
+    void putEvent(const EventPtr& event) override;
     
     // 便捷方法：创建并发布事件
     template<typename T>
@@ -46,9 +42,9 @@ public:
     }
     
     // 获取统计信息
-    size_t getEventQueueSize() const;
-    size_t getHandlerCount(EventType type) const;
-    uint64_t getProcessedEventCount() const { return processed_count_; }
+    size_t getEventQueueSize() const override;
+    size_t getHandlerCount(EventType type) const override;
+    uint64_t getProcessedEventCount() const override { return processed_count_; }
     
     // 禁止拷贝
     EventEngine(const EventEngine&) = delete;

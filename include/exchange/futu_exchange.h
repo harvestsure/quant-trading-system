@@ -6,6 +6,9 @@
 #include <map>
 #include <thread>
 
+// 前向声明
+class IEventEngine;
+
 // Forward declarations
 #ifdef ENABLE_FUTU
 namespace Futu {
@@ -29,6 +32,7 @@ struct FutuConfig {
 
 // Futu交易所实现
 class FutuExchange : public IExchange {
+    friend class FutuSpi;
 public:
     explicit FutuExchange(const FutuConfig& config);
     virtual ~FutuExchange();
@@ -77,10 +81,19 @@ public:
     std::vector<std::string> getMarketStockList() override;
     std::map<std::string, Snapshot> getBatchSnapshots(const std::vector<std::string>& stock_codes) override;
     
+    // ========== 事件引擎 ==========
+    void setEventEngine(IEventEngine* event_engine) override;
+    IEventEngine* getEventEngine() const override { return event_engine_; }
+
+protected:
+    // 辅助方法：通过事件引擎发布日志
+    void writeLog(LogLevel level, const std::string& message);
+
 private:
     FutuConfig config_;
     bool connected_;
     mutable std::mutex mutex_;
+    IEventEngine* event_engine_ = nullptr;  // 事件引擎指针
     
     #ifdef ENABLE_FUTU
     FutuSpi* spi_ = nullptr;              // 回调处理和API管理
