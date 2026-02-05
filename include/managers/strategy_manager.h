@@ -7,6 +7,7 @@
 #include <set>
 #include <mutex>
 #include "common/object.h"
+#include "event/event_interface.h"
 
  
 
@@ -32,6 +33,9 @@ struct StrategyInstance {
 class StrategyManager {
 public:
     static StrategyManager& getInstance();
+    
+    // 初始化事件系统
+    void initializeEventHandlers(IEventEngine* event_engine);
     
     // 动态策略管理 - 根据扫描结果创建/删除策略实例
     void processScanResults(const std::vector<ScanResult>& results);
@@ -63,11 +67,24 @@ private:
     // 上一次扫描的股票代码集合
     std::set<std::string> last_scan_stocks_;
     
+    // 事件引擎指针
+    IEventEngine* event_engine_ = nullptr;
+    
+    // 事件处理器IDs
+    int kline_handler_id_ = -1;
+    int tick_handler_id_ = -1;
+    int trade_handler_id_ = -1;
+    
     mutable std::mutex mutex_;
     
     // 内部辅助函数
     bool canRemoveStrategy(const std::string& symbol) const;
     std::shared_ptr<StrategyBase> createStrategy(const std::string& symbol, const ScanResult& scan_result);
+    
+    // 事件处理函数
+    void onKLineEvent(const EventPtr& event);
+    void onTickEvent(const EventPtr& event);
+    void onTradeEvent(const EventPtr& event);
 };
 
  

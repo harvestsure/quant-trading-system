@@ -14,8 +14,10 @@ using namespace Futu;
 #define CLASS_NAME "futu"
 
 
-FutuExchange::FutuExchange(const FutuConfig& config)
-    : config_(config), connected_(false) {
+FutuExchange::FutuExchange(IEventEngine* event_engine, const FutuConfig& config)
+    : event_engine_(event_engine)
+    , config_(config)
+    , connected_(false) {
     #ifdef ENABLE_FUTU
     spi_ = nullptr;
     #endif
@@ -1120,42 +1122,7 @@ std::map<std::string, Snapshot> FutuExchange::getBatchSnapshots(
 }
 
 
-const char* GetExchangeClass() {
-    return CLASS_NAME;
-}
-
-IExchange* GetExchangeInstance(const std::map<std::string, std::string>& config) {
-
-    FutuConfig futu_config;
-    
-    // 从配置中读取参数
-    if (config.find("host") != config.end()) {
-        futu_config.host = config.at("host");
-    }
-    if (config.find("port") != config.end()) {
-        futu_config.port = std::stoi(config.at("port"));
-    }
-    if (config.find("unlock_password") != config.end()) {
-        futu_config.unlock_password = config.at("unlock_password");
-    }
-    if (config.find("is_simulation") != config.end()) {
-        futu_config.is_simulation = (config.at("is_simulation") == "true" || config.at("is_simulation") == "1");
-    }
-    if (config.find("market") != config.end()) {
-        futu_config.market = config.at("market");
-    }
-    
-    return new FutuExchange(futu_config);
-}
-
 // ========== 事件引擎 ==========
-
-void FutuExchange::setEventEngine(IEventEngine* event_engine) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    event_engine_ = event_engine;
-    writeLog(LogLevel::Info, "Event engine set for Futu Exchange");
-}
-
 void FutuExchange::writeLog(LogLevel level, const std::string& message) {
     auto current_timestamp =  std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::system_clock::now().time_since_epoch()
@@ -1187,4 +1154,32 @@ void FutuExchange::writeLog(LogLevel level, const std::string& message) {
                 break;
         }
     }
+}
+
+const char* GetExchangeClass() {
+    return CLASS_NAME;
+}
+
+IExchange* GetExchangeInstance(IEventEngine* event_engine, const std::map<std::string, std::string>& config) {
+
+    FutuConfig futu_config;
+    
+    // 从配置中读取参数
+    if (config.find("host") != config.end()) {
+        futu_config.host = config.at("host");
+    }
+    if (config.find("port") != config.end()) {
+        futu_config.port = std::stoi(config.at("port"));
+    }
+    if (config.find("unlock_password") != config.end()) {
+        futu_config.unlock_password = config.at("unlock_password");
+    }
+    if (config.find("is_simulation") != config.end()) {
+        futu_config.is_simulation = (config.at("is_simulation") == "true" || config.at("is_simulation") == "1");
+    }
+    if (config.find("market") != config.end()) {
+        futu_config.market = config.at("market");
+    }
+    
+    return new FutuExchange(event_engine, futu_config);
 }

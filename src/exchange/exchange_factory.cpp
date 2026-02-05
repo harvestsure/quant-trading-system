@@ -93,6 +93,7 @@ ExchangeFactory::ExchangeFactory() {
 }
 
 std::shared_ptr<IExchange> ExchangeFactory::createExchange(
+    IEventEngine* event_engine,
     std::string name,
     const std::map<std::string, std::string>& config) {
 
@@ -102,13 +103,13 @@ std::shared_ptr<IExchange> ExchangeFactory::createExchange(
         }
 
         auto lib = loaded_libraries_[name];
-        auto pGetExchangeInstance = lib->get_function<IExchange* (const std::map<std::string, std::string>&)>(ExchangeInstance);
+        auto pGetExchangeInstance = lib->get_function<IExchange* (IEventEngine*, const std::map<std::string, std::string>&)>(ExchangeInstance);
         if (!pGetExchangeInstance) {
             LOG_ERROR("GetExchangeInstance function not found in exchange class: " + name);
             return nullptr;
         }
 
-        IExchange* exchange_ptr = pGetExchangeInstance(config);
+        IExchange* exchange_ptr = pGetExchangeInstance(event_engine, config);
         if (!exchange_ptr) {
             LOG_ERROR("Failed to create exchange instance: " + name);
             return nullptr;

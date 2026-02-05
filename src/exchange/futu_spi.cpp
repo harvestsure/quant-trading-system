@@ -2,6 +2,7 @@
 
 #include "futu_spi.h"
 #include "event/event_interface.h"
+#include "event/event.h"
 #include "exchange/futu_exchange.h"
 #include <chrono>
 
@@ -919,7 +920,76 @@ void FutuSpi::OnPush_Notify(const Notify::Response &stRsp) {
 
 void FutuSpi::OnPush_UpdateBasicQot(const Qot_UpdateBasicQot::Response &stRsp) {
     writeLog(LogLevel::Info, "OnPush_UpdateBasicQot");
-    // TODO: 转换并发布 Tick 事件
+    
+    try {
+        if (stRsp.rettype() != 0) {
+            writeLog(LogLevel::Warn, std::string("OnPush_UpdateBasicQot failed: ") + stRsp.retmsg());
+            return;
+        }
+        
+        if (!stRsp.has_s2c()) {
+            writeLog(LogLevel::Warn, "OnPush_UpdateBasicQot: no s2c data");
+            return;
+        }
+        
+        const auto& s2c = stRsp.s2c();
+        if (s2c.basicqotlist_size() <= 0) {
+            writeLog(LogLevel::Debug, "OnPush_UpdateBasicQot: empty basicqot list");
+            return;
+        }
+        
+        // 检查 exchange_ 和 event_engine_ 是否有效
+        if (exchange_ == nullptr) {
+            writeLog(LogLevel::Error, "OnPush_UpdateBasicQot: exchange is null");
+            return;
+        }
+        
+        IEventEngine* event_engine = exchange_->getEventEngine();
+        if (event_engine == nullptr) {
+            writeLog(LogLevel::Warn, "OnPush_UpdateBasicQot: event engine not set");
+            return;
+        }
+        
+        // 处理每个基础行情数据
+        for (int i = 0; i < s2c.basicqotlist_size(); ++i) {
+            const auto& basic = s2c.basicqotlist(i);
+            if (!basic.has_security()) {
+                continue;
+            }
+            
+            const auto& security = basic.security();
+            std::string symbol = security.code();
+            
+            // 构建 TickData 对象
+            TickData tick_data;
+            tick_data.symbol = symbol;
+            tick_data.exchange = exchange_->getName();
+            tick_data.timestamp = std::chrono::system_clock::now().time_since_epoch().count() / 1000000;
+            tick_data.datetime = basic.updatetime();
+            
+            // 从 basic 中提取价格数据
+            tick_data.last_price = basic.curprice();
+            tick_data.open_price = basic.openprice();
+            tick_data.high_price = basic.highprice();
+            tick_data.low_price = basic.lowprice();
+            tick_data.pre_close = basic.lastcloseprice();
+            
+            // 成交量和金额
+            tick_data.volume = basic.volume();
+            tick_data.turnover = basic.turnover();
+            tick_data.turnover_rate = basic.turnoverrate();
+            
+            // 发布 Tick 事件
+            auto event = std::make_shared<Event>(EventType::EVENT_TICK);
+            event->setData(tick_data);
+            event_engine->putEvent(event);
+            
+            writeLog(LogLevel::Info, std::string("Published TICK event (BasicQot): ") + symbol + " price=" + std::to_string(tick_data.last_price));
+        }
+        
+    } catch (const std::exception& e) {
+        writeLog(LogLevel::Error, std::string("Exception in OnPush_UpdateBasicQot: ") + e.what());
+    }
 }
 
 void FutuSpi::OnPush_UpdateOrderBook(const Qot_UpdateOrderBook::Response &stRsp) {
@@ -928,11 +998,197 @@ void FutuSpi::OnPush_UpdateOrderBook(const Qot_UpdateOrderBook::Response &stRsp)
 
 void FutuSpi::OnPush_UpdateTicker(const Qot_UpdateTicker::Response &stRsp) {
     writeLog(LogLevel::Info, "OnPush_UpdateTicker");
+    
+    try {
+        if (stRsp.rettype() != 0) {
+            writeLog(LogLevel::Warn, std::string("OnPush_UpdateTicker failed: ") + stRsp.retmsg());
+            return;
+        }
+        
+        if (!stRsp.has_s2c()) {
+            writeLog(LogLevel::Warn, "OnPush_UpdateTicker: no s2c data");
+            return;
+        }
+        
+        const auto& s2c = stRsp.s2c();
+        if (s2c.tickerlist_size() <= 0) {
+            writeLog(LogLevel::Debug, "OnPush_UpdateTicker: empty ticker list");
+            return;
+        }
+        
+        // 检查 exchange_ 和 event_engine_ 是否有效
+        if (exchange_ == nullptr) {
+            writeLog(LogLevel::Error, "OnPush_UpdateTicker: exchange is null");
+            return;
+        }
+        
+        IEventEngine* event_engine = exchange_->getEventEngine();
+        if (event_engine == nullptr) {
+            writeLog(LogLevel::Warn, "OnPush_UpdateTicker: event engine not set");
+            return;
+        }
+        
+        // 获取 security 信息（在 S2C 中，而不是在每个 ticker 中）
+        if (!s2c.has_security()) {
+            writeLog(LogLevel::Warn, "OnPush_UpdateTicker: no security in s2c");
+            return;
+        }
+        
+        const auto& security = s2c.security();
+        std::string symbol = security.code();
+        
+        // 处理每个 ticker 数据
+        for (int i = 0; i < s2c.tickerlist_size(); ++i) {
+            const auto& ticker = s2c.tickerlist(i);
+            
+            // 构建 TickData 对象
+            TickData tick_data;
+            tick_data.symbol = symbol;
+            tick_data.exchange = exchange_->getName();
+            tick_data.timestamp = std::chrono::system_clock::now().time_since_epoch().count() / 1000000;
+            tick_data.datetime = ticker.time();
+            
+            // 从 ticker 中提取成交数据
+            tick_data.last_price = ticker.price();           // 成交价格
+            tick_data.volume = ticker.volume();              // 成交量
+            tick_data.turnover = ticker.turnover();          // 成交额
+            
+            // 发布 Tick 事件
+            auto event = std::make_shared<Event>(EventType::EVENT_TICK);
+            event->setData(tick_data);
+            event_engine->putEvent(event);
+            
+            writeLog(LogLevel::Info, std::string("Published TICK event: ") + symbol + " price=" + std::to_string(tick_data.last_price));
+        }
+        
+    } catch (const std::exception& e) {
+        writeLog(LogLevel::Error, std::string("Exception in OnPush_UpdateTicker: ") + e.what());
+    }
 }
 
 void FutuSpi::OnPush_UpdateKL(const Qot_UpdateKL::Response &stRsp) {
     writeLog(LogLevel::Info, "OnPush_UpdateKL");
-    // TODO: 转换并发布 KLine 事件
+    
+    try {
+        if (stRsp.rettype() != 0) {
+            writeLog(LogLevel::Warn, std::string("OnPush_UpdateKL failed: ") + stRsp.retmsg());
+            return;
+        }
+        
+        if (!stRsp.has_s2c()) {
+            writeLog(LogLevel::Warn, "OnPush_UpdateKL: no s2c data");
+            return;
+        }
+        
+        const auto& s2c = stRsp.s2c();
+        if (s2c.kllist_size() <= 0) {
+            writeLog(LogLevel::Debug, "OnPush_UpdateKL: empty kline list");
+            return;
+        }
+        
+        // 检查 exchange_ 和 event_engine_ 是否有效
+        if (exchange_ == nullptr) {
+            writeLog(LogLevel::Error, "OnPush_UpdateKL: exchange is null");
+            return;
+        }
+        
+        IEventEngine* event_engine = exchange_->getEventEngine();
+        if (event_engine == nullptr) {
+            writeLog(LogLevel::Warn, "OnPush_UpdateKL: event engine not set");
+            return;
+        }
+        
+        // 获取 K 线类型（从首个 K 线）
+        std::string kline_interval = "1m";  // 默认值
+        if (s2c.kllist_size() > 0) {
+            int32_t kl_type = s2c.kltype();
+            // 转换 K 线类型
+            if (kl_type == Qot_Common::KLType_1Min) {
+                kline_interval = "1m";
+            } else if (kl_type == Qot_Common::KLType_3Min) {
+                kline_interval = "3m";
+            } else if (kl_type == Qot_Common::KLType_5Min) {
+                kline_interval = "5m";
+            } else if (kl_type == Qot_Common::KLType_15Min) {
+                kline_interval = "15m";
+            } else if (kl_type == Qot_Common::KLType_30Min) {
+                kline_interval = "30m";
+            } else if (kl_type == Qot_Common::KLType_60Min) {
+                kline_interval = "1h";
+            } else if (kl_type == Qot_Common::KLType_Day) {
+                kline_interval = "1d";
+            } else if (kl_type == Qot_Common::KLType_Week) {
+                kline_interval = "1w";
+            } else if (kl_type == Qot_Common::KLType_Month) {
+                kline_interval = "1mon";
+            }
+        }
+        
+        // 处理每个 K 线数据
+        for (int i = 0; i < s2c.kllist_size(); ++i) {
+            const auto& kl = s2c.kllist(i);
+            
+            // 获取 symbol（从 security 或其他字段）
+            std::string symbol;
+            if (s2c.has_security()) {
+                const auto& security = s2c.security();
+                symbol = security.code();
+            } else {
+                // 如果 s2c 中没有 security，继续
+                continue;
+            }
+            
+            // 构建 KlineData 对象
+            KlineData kline_data;
+            kline_data.symbol = symbol;
+            kline_data.exchange = exchange_->getName();
+            kline_data.interval = kline_interval;
+            kline_data.datetime = kl.time();
+            
+            // 从 K 线中提取价格数据
+            kline_data.open_price = kl.openprice();
+            kline_data.high_price = kl.highprice();
+            kline_data.low_price = kl.lowprice();
+            kline_data.close_price = kl.closeprice();
+            kline_data.volume = kl.volume();
+            kline_data.turnover = kl.turnover();
+            
+            // 解析时间戳（假设 datetime 是字符串格式，如 "2024-02-05 10:00:00"）
+            // 这里暂时设置为系统当前时间，实际应该从 datetime 字符串解析
+            kline_data.timestamp = std::chrono::system_clock::now().time_since_epoch().count() / 1000000;
+            
+            // 根据 interval 设置 interval_enum
+            if (kline_interval == "1m") {
+                kline_data.interval_enum = KlineInterval::K_1M;
+            } else if (kline_interval == "3m") {
+                kline_data.interval_enum = KlineInterval::K_3M;
+            } else if (kline_interval == "5m") {
+                kline_data.interval_enum = KlineInterval::K_5M;
+            } else if (kline_interval == "15m") {
+                kline_data.interval_enum = KlineInterval::K_15M;
+            } else if (kline_interval == "30m") {
+                kline_data.interval_enum = KlineInterval::K_30M;
+            } else if (kline_interval == "1h") {
+                kline_data.interval_enum = KlineInterval::K_1H;
+            } else if (kline_interval == "1d") {
+                kline_data.interval_enum = KlineInterval::K_1D;
+            } else if (kline_interval == "1w") {
+                kline_data.interval_enum = KlineInterval::K_1W;
+            } else if (kline_interval == "1mon") {
+                kline_data.interval_enum = KlineInterval::K_1MO;
+            }
+            
+            // 发布 KLine 事件
+            auto event = std::make_shared<Event>(EventType::EVENT_KLINE);
+            event->setData(kline_data);
+            event_engine->putEvent(event);
+            
+            writeLog(LogLevel::Info, std::string("Published KLINE event: ") + symbol + " " + kline_interval + " close=" + std::to_string(kline_data.close_price));
+        }
+        
+    } catch (const std::exception& e) {
+        writeLog(LogLevel::Error, std::string("Exception in OnPush_UpdateKL: ") + e.what());
+    }
 }
 
 void FutuSpi::OnPush_UpdateRT(const Qot_UpdateRT::Response &stRsp) {

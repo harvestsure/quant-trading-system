@@ -26,15 +26,10 @@ bool ExchangeManager::initExchange(const ExchangeInstanceConfig& config) {
         }
     }
     
-    auto exchange = ExchangeFactory::getInstance().createExchange(config.name, params);
+    auto exchange = ExchangeFactory::getInstance().createExchange(event_engine_, config.name, params);
     if (!exchange) {
         LOG_ERROR("Failed to create exchange: " + config.name);
         return false;
-    }
-    
-    // 如果已经设置了事件引擎，则自动传递给新创建的交易所
-    if (event_engine_) {
-        exchange->setEventEngine(event_engine_);
     }
     
     exchanges_[config.name] = exchange;
@@ -63,13 +58,6 @@ bool ExchangeManager::initAllExchanges(const std::vector<ExchangeInstanceConfig>
 void ExchangeManager::setEventEngine(IEventEngine* event_engine) {
     std::lock_guard<std::mutex> lock(mutex_);
     event_engine_ = event_engine;
-    
-    // 同时传递给所有已创建的交易所
-    for (auto& [name, exchange] : exchanges_) {
-        if (exchange) {
-            exchange->setEventEngine(event_engine);
-        }
-    }
     
     LOG_INFO("Event engine set for all exchanges");
 }

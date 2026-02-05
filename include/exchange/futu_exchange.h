@@ -34,7 +34,7 @@ struct FutuConfig {
 class FutuExchange : public IExchange {
     friend class FutuSpi;
 public:
-    explicit FutuExchange(const FutuConfig& config);
+    explicit FutuExchange(IEventEngine* event_engine, const FutuConfig& config);
     virtual ~FutuExchange();
     
     // ========== 连接管理 ==========
@@ -82,7 +82,6 @@ public:
     std::map<std::string, Snapshot> getBatchSnapshots(const std::vector<std::string>& stock_codes) override;
     
     // ========== 事件引擎 ==========
-    void setEventEngine(IEventEngine* event_engine) override;
     IEventEngine* getEventEngine() const override { return event_engine_; }
 
 protected:
@@ -114,5 +113,5 @@ private:
 extern "C"
 {
 	QTS_DECL_EXPORT const char* GetExchangeClass();
-	QTS_DECL_EXPORT IExchange* GetExchangeInstance(const std::map<std::string, std::string>& config);
+	QTS_DECL_EXPORT IExchange* GetExchangeInstance(IEventEngine* event_engine, const std::map<std::string, std::string>& config);
 }

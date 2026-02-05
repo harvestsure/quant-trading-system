@@ -2,6 +2,7 @@
 #include "managers/position_manager.h"
 #include "strategies/strategy_base.h"
 #include "strategies/momentum_strategy.h"
+#include "event/event.h"
 #include "utils/logger.h"
 #include <algorithm>
 #include <sstream>
@@ -237,5 +238,144 @@ std::shared_ptr<StrategyBase> StrategyManager::createStrategy(
     // 注意：需要在StrategyBase中添加setName方法，或在构造时传入
     
     return strategy;
+}
+
+// ========== 事件处理 ==========
+
+void StrategyManager::initializeEventHandlers(IEventEngine* event_engine) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    
+    if (event_engine == nullptr) {
+        LOG_ERROR("Event engine is null");
+        return;
+    }
+    
+    event_engine_ = event_engine;
+    
+    // 注册事件处理器
+    // 使用 lambda 捕获 this，当事件到达时调用对应的处理方法
+    kline_handler_id_ = event_engine_->registerHandler(
+        EventType::EVENT_KLINE,
+        [this](const EventPtr& event) { this->onKLineEvent(event); }
+    );
+    
+    tick_handler_id_ = event_engine_->registerHandler(
+        EventType::EVENT_TICK,
+        [this](const EventPtr& event) { this->onTickEvent(event); }
+    );
+    
+    trade_handler_id_ = event_engine_->registerHandler(
+        EventType::EVENT_TRADE_DEAL,
+        [this](const EventPtr& event) { this->onTradeEvent(event); }
+    );
+    
+    LOG_INFO("StrategyManager event handlers registered");
+}
+
+void StrategyManager::onKLineEvent(const EventPtr& event) {
+    if (!event) {
+        return;
+    }
+    
+    // 从事件中提取 KlineData
+    const KlineData* kline = event->getData<KlineData>();
+    if (kline == nullptr) {
+        LOG_ERROR("Failed to extract KlineData from event");
+        return;
+    }
+    
+    std::string symbol = kline->symbol;
+    
+    // 查找对应的策略实例并调用处理方法
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        
+        auto it = strategy_instances_.find(symbol);
+        if (it == strategy_instances_.end()) {
+            // 没有对应的策略实例，直接返回
+            return;
+        }
+        
+        if (!it->second.is_active || !it->second.strategy) {
+            return;
+        }
+        
+        // 调用策略的 onKLine 方法处理数据
+        it->second.strategy->onKLine(symbol, *kline);
+    }
+}
+
+void StrategyManager::onTickEvent(const EventPtr& event) {
+    if (!event) {
+        return;
+    }
+    
+    // 从事件中提取 TickData
+    const TickData* tick = event->getData<TickData>();
+    if (tick == nullptr) {
+        LOG_ERROR("Failed to extract TickData from event");
+        return;
+    }
+    
+    std::string symbol = tick->symbol;
+    
+    // 查找对应的策略实例并调用处理方法
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        
+        auto it = strategy_instances_.find(symbol);
+        if (it == strategy_instances_.end()) {
+            // 没有对应的策略实例，直接返回
+            return;
+        }
+        
+        if (!it->second.is_active || !it->second.strategy) {
+            return;
+        }
+        
+        // 调用策略的 onTick 方法处理数据
+        it->second.strategy->onTick(symbol, *tick);
+    }
+}
+
+void StrategyManager::onTradeEvent(const EventPtr& event) {
+    if (!event) {
+        return;
+    }
+    
+    // 从事件中提取 TradeData
+    const TradeData* trade = event->getData<TradeData>();
+    if (trade == nullptr) {
+        LOG_ERROR("Failed to extract TradeData from event");
+        return;
+    }
+    
+    std::string symbol = trade->symbol;
+    
+    // 查找对应的策略实例
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        
+        auto it = strategy_instances_.find(symbol);
+        if (it == strategy_instances_.end()) {
+            // 没有对应的策略实例，直接返回
+            return;
+        }
+        
+        if (!it->second.is_active || !it->second.strategy) {
+            return;
+        }
+        
+        // 可以在这里添加对成交数据的处理
+        // 可选：记录成交事件、更新持仓、计算收益等
+        std::stringstream ss;
+        ss << "Trade executed for " << symbol 
+           << " - Direction: " << (trade->direction == Direction::LONG ? "LONG" : "SHORT")
+           << ", Volume: " << trade->volume 
+           << ", Price: " << trade->price;
+        LOG_INFO(ss.str());
+        
+        // TODO: 可以添加 onTrade() 方法到策略基类中处理成交事件
+    }
 }
 
