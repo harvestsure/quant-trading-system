@@ -57,6 +57,8 @@ void MomentumStrategy::onScanResult(const ScanResult& result) {
 }
 
 void MomentumStrategy::onKLine(const std::string& symbol, const KlineData& kline) {
+    StrategyBase::onKLine(symbol, kline);
+
     if (!running_) return;
     
     // 检查是否需要止盈或止损
@@ -84,7 +86,18 @@ void MomentumStrategy::onKLine(const std::string& symbol, const KlineData& kline
     }
 }
 
+void MomentumStrategy::onTick(const std::string& symbol, const TickData& tick) {
+    StrategyBase::onTick(symbol, tick);
+
+    if (!running_) return;
+    
+    // 可以在这里添加基于Tick数据的交易逻辑
+    // 例如更精细的止损/止盈判断等
+}
+
 void MomentumStrategy::onSnapshot(const Snapshot& snapshot) {
+    StrategyBase::onSnapshot(snapshot);
+
     if (!running_) return;
     
     // 更新持仓的市价

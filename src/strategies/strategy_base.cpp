@@ -49,17 +49,23 @@ void StrategyBase::onKLine(const std::string& symbol, const KlineData& kline) {
     // 默认实现为空，子类可以覆盖
     (void)symbol;
     (void)kline;
+
+    LOG_INFO("Strategy " + name_ + " received KLine data for " + symbol);
 }
 
 void StrategyBase::onTick(const std::string& symbol, const TickData& tick) {
     // 默认实现为空，子类可以覆盖
     (void)symbol;
     (void)tick;
+
+    LOG_INFO("Strategy " + name_ + " received Tick data for " + symbol);
 }
 
 void StrategyBase::onSnapshot(const Snapshot& snapshot) {
     // 默认实现为空，子类可以覆盖
     (void)snapshot;
+
+    LOG_INFO("Strategy " + name_ + " received Snapshot data");
 }
 
 void StrategyBase::subscribeStock(const std::string& symbol) {

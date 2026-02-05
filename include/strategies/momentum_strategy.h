@@ -14,6 +14,7 @@ public:
     
     void onScanResult(const ScanResult& result) override;
     void onKLine(const std::string& symbol, const KlineData& kline) override;
+    void onTick(const std::string& symbol, const TickData& tick) override;
     void onSnapshot(const Snapshot& snapshot) override;
     
 private:
