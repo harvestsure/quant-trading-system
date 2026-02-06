@@ -121,8 +121,8 @@ void MarketScanner::scanLoop() {
                 if (!stock_list.empty()) {
                     watch_lists_[exch_name] = stock_list;
                     LOG_INFO("Loaded " + std::to_string(stock_list.size()) + " stocks from " + exch_name);
-                    // 初始化历史成交量数据（用于爆发检测量比计算）
-                    initVolumeHistory(exchange, stock_list);
+                    // 量比历史数据采用懒加载策略，在首次扫描时按需获取
+                    LOG_INFO("Volume history will be loaded on-demand during scanning");
                 }
             }
         }
@@ -187,7 +187,7 @@ void MarketScanner::performScan(const std::shared_ptr<IExchange>& exchange) {
     
     // 筛选符合爆发条件的股票
     std::vector<ScanResult> filtered_results;
-    for (const auto& result : results) {
+    for (auto& result : results) {
         if (meetsSelectionCriteria(result)) {
             filtered_results.push_back(result);
         }
@@ -291,7 +291,7 @@ std::vector<ScanResult> MarketScanner::batchFetchMarketData(const std::shared_pt
 
 ScanResult MarketScanner::convertSnapshotToScanResult(const Snapshot& snapshot, 
                                                        const std::string& exchange_name,
-                                                       std::shared_ptr<IExchange> exchange) const {
+                                                       std::shared_ptr<IExchange> exchange) {
     ScanResult result;
     result.symbol = snapshot.symbol;
     result.stock_name = snapshot.name;
@@ -305,8 +305,8 @@ ScanResult MarketScanner::convertSnapshotToScanResult(const Snapshot& snapshot,
     
     // === 爆发检测指标计算 ===
     
-    // 1. 量比（当前成交量 / 历史平均成交量，按交易时间外推）
-    result.volume_ratio = calculateVolumeRatio(snapshot.symbol, snapshot.volume);
+    // 1. 量比 - 延迟加载，仅对通过基本筛选的股票计算（避免对3583只股全部请求K线）
+    result.volume_ratio = -1.0;  // 标记为未计算
     
     // 2. 振幅（日内波动幅度）
     if (snapshot.open_price > 0) {
@@ -370,7 +370,7 @@ bool MarketScanner::isInOpeningPeriod() const {
     return morning_opening || afternoon_opening;
 }
 
-bool MarketScanner::meetsSelectionCriteria(const ScanResult& result) const {
+bool MarketScanner::meetsSelectionCriteria(ScanResult& result) {
     // ===== 港股爆发股筛选条件 =====
     // 核心思路：找到成交量突然放大、价格快速拉升的个股
     
@@ -386,8 +386,12 @@ bool MarketScanner::meetsSelectionCriteria(const ScanResult& result) const {
         return false;
     }
     
-    // 3. 量比条件：成交量异常放大是爆发的核心信号
-    //    量比 >= 2.5 表示成交量显著超过近5日平均水平
+    // 3. 量比条件：倸带加载 - 仅对通过以上基本筛选的股票计算量比
+    //    成交量异常放大是爆发的核心信号
+    if (result.volume_ratio < 0) {
+        // 延迟加载量比，使用 result 中的 exchange 指针避免重新加锁
+        result.volume_ratio = calculateVolumeRatio(result.symbol, result.volume, result.exchange);
+    }
     if (result.volume_ratio < scanner_params_.breakout_volume_ratio_min) {
         return false;
     }
@@ -469,12 +473,42 @@ double MarketScanner::calculateScore(const ScanResult& result) const {
 
 // ===== 爆发检测核心方法 =====
 
-double MarketScanner::calculateVolumeRatio(const std::string& symbol, int64_t current_volume) const {
-    std::lock_guard<std::mutex> lock(volume_history_mutex_);
+double MarketScanner::calculateVolumeRatio(const std::string& symbol, int64_t current_volume, 
+                                            const std::shared_ptr<IExchange>& exchange) {
+    // 检查是否已有历史数据，没有则懒加载
+    bool need_load = false;
+    {
+        std::lock_guard<std::mutex> lock(volume_history_mutex_);
+        auto it = volume_history_.find(symbol);
+        if (it == volume_history_.end() || it->second.avg_volume <= 0) {
+            need_load = true;
+        }
+    }
     
+    if (need_load && exchange && exchange->isConnected()) {
+        // 懒加载：首次遇到该股票时获取历史日K线
+        try {
+            auto klines = exchange->getHistoryKLine(symbol, "K_DAY", VOLUME_HISTORY_DAYS + 1);
+            if (klines.size() >= 2) {
+                std::lock_guard<std::mutex> lock(volume_history_mutex_);
+                auto& history = volume_history_[symbol];
+                history.daily_volumes.clear();
+                for (size_t j = 0; j < klines.size() - 1; ++j) {
+                    history.daily_volumes.push_back(klines[j].volume);
+                }
+                int64_t total = 0;
+                for (auto v : history.daily_volumes) total += v;
+                history.avg_volume = total / (int64_t)history.daily_volumes.size();
+                history.last_price = klines.back().close_price;
+            }
+        } catch (...) {}
+    }
+    
+    // 计算量比
+    std::lock_guard<std::mutex> lock(volume_history_mutex_);
     auto it = volume_history_.find(symbol);
     if (it == volume_history_.end() || it->second.avg_volume <= 0) {
-        return 1.0;  // 没有历史数据，默认量比为1
+        return 1.0;  // 无历史数据，默认量比为1
     }
     
     // 根据当日已过交易时间对成交量进行估算

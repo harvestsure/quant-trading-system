@@ -505,7 +505,39 @@ Futu::u32_t FutuSpi::SendGetHistoryKLine(const Qot_Common::Security& security, i
         auto* c2s = req.mutable_c2s();
         *c2s->mutable_security() = security;
         c2s->set_kltype(kline_type);
-        c2s->set_maxackklnum(count);  // 使用 maxackklnum 而不是 reqnum
+        c2s->set_maxackklnum(count);
+        c2s->set_rehabtype(1);  // 前复权
+        
+        // 根据K线类型计算合理的时间范围
+        auto now = std::chrono::system_clock::now();
+        auto end_time = now;
+        
+        // 往前推足够的时间窗口
+        int days_back = 30;  // 默认30天
+        if (kline_type <= 8) {  // 分钟级别K线 (1min~60min)
+            days_back = 5;
+        } else if (kline_type == 9 || kline_type == 10) {  // 日K/周K
+            days_back = count * 2 + 10;  // 留足余量应对非交易日
+        } else {
+            days_back = count * 40;  // 月K等
+        }
+        
+        auto begin_time = now - std::chrono::hours(24 * days_back);
+        
+        // 格式化时间字符串 yyyy-MM-dd HH:mm:ss
+        auto format_time = [](std::chrono::system_clock::time_point tp) -> std::string {
+            auto time_t_val = std::chrono::system_clock::to_time_t(tp);
+            struct tm tm_val;
+            localtime_r(&time_t_val, &tm_val);
+            char buf[32];
+            snprintf(buf, sizeof(buf), "%04d-%02d-%02d %02d:%02d:%02d",
+                     tm_val.tm_year + 1900, tm_val.tm_mon + 1, tm_val.tm_mday,
+                     tm_val.tm_hour, tm_val.tm_min, tm_val.tm_sec);
+            return std::string(buf);
+        };
+        
+        c2s->set_begintime(format_time(begin_time));
+        c2s->set_endtime(format_time(end_time));
         
         Futu::u32_t serial_no = qot_api_->RequestHistoryKL(req);
         if (serial_no == 0) {

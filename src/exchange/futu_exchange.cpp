@@ -252,23 +252,23 @@ Qot_Common::Security FutuExchange::convertToSecurity(const std::string& symbol) 
 
 int32_t FutuExchange::convertKLineType(const std::string& kline_type) {
     #ifdef ENABLE_FUTU
-    if (kline_type == "1m" || kline_type == "1min") {
+    if (kline_type == "1m" || kline_type == "1min" || kline_type == "K_1M") {
         return Qot_Common::KLType_1Min;
-    } else if (kline_type == "3m" || kline_type == "3min") {
+    } else if (kline_type == "3m" || kline_type == "3min" || kline_type == "K_3M") {
         return Qot_Common::KLType_3Min;
-    } else if (kline_type == "5m" || kline_type == "5min") {
+    } else if (kline_type == "5m" || kline_type == "5min" || kline_type == "K_5M") {
         return Qot_Common::KLType_5Min;
-    } else if (kline_type == "15m" || kline_type == "15min") {
+    } else if (kline_type == "15m" || kline_type == "15min" || kline_type == "K_15M") {
         return Qot_Common::KLType_15Min;
-    } else if (kline_type == "30m" || kline_type == "30min") {
+    } else if (kline_type == "30m" || kline_type == "30min" || kline_type == "K_30M") {
         return Qot_Common::KLType_30Min;
-    } else if (kline_type == "60m" || kline_type == "60min" || kline_type == "1h") {
+    } else if (kline_type == "60m" || kline_type == "60min" || kline_type == "1h" || kline_type == "K_60M") {
         return Qot_Common::KLType_60Min;
-    } else if (kline_type == "1d" || kline_type == "day") {
+    } else if (kline_type == "1d" || kline_type == "day" || kline_type == "K_DAY") {
         return Qot_Common::KLType_Day;
-    } else if (kline_type == "1w" || kline_type == "week") {
+    } else if (kline_type == "1w" || kline_type == "week" || kline_type == "K_WEEK") {
         return Qot_Common::KLType_Week;
-    } else if (kline_type == "1mon" || kline_type == "month") {
+    } else if (kline_type == "1mon" || kline_type == "month" || kline_type == "K_MON") {
         return Qot_Common::KLType_Month;
     }
     

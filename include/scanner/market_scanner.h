@@ -90,14 +90,15 @@ private:
     bool isInOpeningPeriod() const;
     
     // 筛选和评分
-    bool meetsSelectionCriteria(const ScanResult& result) const;
+    bool meetsSelectionCriteria(ScanResult& result);
     double calculateScore(const ScanResult& result) const;
     ScanResult convertSnapshotToScanResult(const Snapshot& snapshot, 
                                            const std::string& exchange_name,
-                                           std::shared_ptr<IExchange> exchange = nullptr) const;
+                                           std::shared_ptr<IExchange> exchange = nullptr);
     
     // === 爆发检测方法 ===
-    double calculateVolumeRatio(const std::string& symbol, int64_t current_volume) const;
+    double calculateVolumeRatio(const std::string& symbol, int64_t current_volume,
+                                 const std::shared_ptr<IExchange>& exchange);
     double calculateSpeed(const std::string& symbol, double current_price) const;
     double calculateBidAskRatio(const Snapshot& snapshot) const;
     void updateVolumeHistory(const std::string& symbol, int64_t volume, double price);
