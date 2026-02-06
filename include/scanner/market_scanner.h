@@ -11,6 +11,7 @@
 #include <chrono>
 #include <ctime>
 #include <mutex>
+#include <deque>
 
 class MarketScanner {
 public:
@@ -32,11 +33,11 @@ public:
     // 获取当前扫描状态
     struct ScannerStatus {
         bool running;
-        std::map<std::string, int> watch_list_counts;  // 每个交易所的监控列表数量
-        std::map<std::string, std::vector<std::string>> qualified_stocks;  // 每个交易所的合格股票
+        std::map<std::string, int> watch_list_counts;
+        std::map<std::string, std::vector<std::string>> qualified_stocks;
         bool is_trading_time;
         bool is_opening_period;
-        std::vector<std::string> active_exchanges;  // 当前活跃的交易所
+        std::vector<std::string> active_exchanges;
     };
     
     ScannerStatus getStatus() const;
@@ -44,28 +45,44 @@ public:
 private:
     std::atomic<bool> running_;
     std::unique_ptr<std::thread> scan_thread_;
-    std::vector<std::shared_ptr<IExchange>> exchanges_;  // 支持多交易所
+    std::vector<std::shared_ptr<IExchange>> exchanges_;
     mutable std::mutex exchanges_mutex_;
     
     // 监控列表（按交易所分类）
-    std::map<std::string, std::vector<std::string>> watch_lists_;  // key: exchange_name
+    std::map<std::string, std::vector<std::string>> watch_lists_;
     mutable std::mutex watch_list_mutex_;
     
     // 最近一次的合格股票（按交易所分类）
-    std::map<std::string, std::vector<std::string>> qualified_stocks_;  // key: exchange_name
+    std::map<std::string, std::vector<std::string>> qualified_stocks_;
     mutable std::mutex qualified_stocks_mutex_;
     
     // 扫描参数配置
-    ScannerParams scanner_params_;  // 从配置文件加载的扫描参数
-    static constexpr int BATCH_SIZE = 400;  // 每批扫描400个股票
-    static constexpr int OPENING_SCAN_INTERVAL_MS = 60000;    // 开盘期间60秒
-    static constexpr int NORMAL_SCAN_INTERVAL_MS = 90000;     // 正常时段90秒
+    ScannerParams scanner_params_;
+    static constexpr int BATCH_SIZE = 400;
+    static constexpr int OPENING_SCAN_INTERVAL_MS = 30000;     // 开盘期间30秒（更快捕捉爆发）
+    static constexpr int NORMAL_SCAN_INTERVAL_MS = 60000;      // 正常时段60秒
     static constexpr int NON_TRADING_SCAN_INTERVAL_MS = 120000; // 非交易时段120秒
+    
+    // === 爆发检测相关 ===
+    // 历史成交量缓存（用于计算量比）
+    struct VolumeHistory {
+        std::deque<int64_t> daily_volumes;  // 近N日成交量
+        int64_t avg_volume = 0;             // 平均成交量
+        double last_price = 0.0;            // 上次扫描时的价格（用于计算涨速）
+        int64_t last_scan_time = 0;         // 上次扫描时间戳
+    };
+    std::map<std::string, VolumeHistory> volume_history_;
+    mutable std::mutex volume_history_mutex_;
+    static constexpr int VOLUME_HISTORY_DAYS = 5;
+    
+    // 上次扫描的快照缓存（用于计算涨速）
+    std::map<std::string, Snapshot> last_snapshots_;
+    mutable std::mutex last_snapshots_mutex_;
     
     void scanLoop();
     void performScan(const std::shared_ptr<IExchange>& exchange);
     
-    // 分批获取市场快照（支持多交易所）
+    // 分批获取市场快照
     std::vector<ScanResult> batchFetchMarketData(const std::shared_ptr<IExchange>& exchange, const std::vector<std::string>& symbols);
     
     // 时间检查
@@ -75,10 +92,16 @@ private:
     // 筛选和评分
     bool meetsSelectionCriteria(const ScanResult& result) const;
     double calculateScore(const ScanResult& result) const;
-    // 转换为scanresult并存储交易所姓名不要调用方处处理交易所信息
     ScanResult convertSnapshotToScanResult(const Snapshot& snapshot, 
                                            const std::string& exchange_name,
                                            std::shared_ptr<IExchange> exchange = nullptr) const;
+    
+    // === 爆发检测方法 ===
+    double calculateVolumeRatio(const std::string& symbol, int64_t current_volume) const;
+    double calculateSpeed(const std::string& symbol, double current_price) const;
+    double calculateBidAskRatio(const Snapshot& snapshot) const;
+    void updateVolumeHistory(const std::string& symbol, int64_t volume, double price);
+    void initVolumeHistory(const std::shared_ptr<IExchange>& exchange, const std::vector<std::string>& symbols);
     
     // 获取当前时刻（时:分）
     std::pair<int, int> getCurrentTime() const;

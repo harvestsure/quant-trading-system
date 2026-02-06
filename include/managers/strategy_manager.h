@@ -24,6 +24,17 @@ struct ScanResult {
     double score;  // 评分
     std::string exchange_name;  // 交易所名称
     std::shared_ptr<IExchange> exchange;  // 交易所实例
+
+    // === 爆发检测指标 ===
+    double volume_ratio = 0.0;      // 量比：当前成交量 / 历史平均成交量
+    double amplitude = 0.0;         // 振幅：(最高价 - 最低价) / 开盘价
+    double speed = 0.0;             // 涨速：近几分钟的价格变化率
+    double bid_ask_ratio = 0.0;     // 委买委卖比：买盘力量 / 卖盘力量
+    double open_price = 0.0;        // 开盘价
+    double high_price = 0.0;        // 最高价
+    double low_price = 0.0;         // 最低价
+    double pre_close = 0.0;         // 昨收价
+    double price_vs_high = 0.0;     // 当前价距最高价比例：(high - price) / high
 };
 
 // 策略实例信息

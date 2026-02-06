@@ -8,6 +8,8 @@
 #include <ctime>
 #include <iomanip>
 #include <mutex>
+#include <cmath>
+#include <sstream>
 
 MarketScanner::MarketScanner() : running_(false) {
     LOG_INFO("Market scanner initialized");
@@ -33,7 +35,10 @@ void MarketScanner::start() {
     
     // 从配置文件加载扫描参数
     scanner_params_ = ConfigManager::getInstance().getScannerParams();
-    LOG_INFO("Loaded scanner config - top_n: " + std::to_string(scanner_params_.top_n));
+    LOG_INFO("Loaded scanner config - top_n: " + std::to_string(scanner_params_.top_n) +
+             ", breakout_vol_ratio: " + std::to_string(scanner_params_.breakout_volume_ratio_min) +
+             ", breakout_change: [" + std::to_string(scanner_params_.breakout_change_ratio_min) + 
+             ", " + std::to_string(scanner_params_.breakout_change_ratio_max) + "]");
     
     std::lock_guard<std::mutex> lock(exchanges_mutex_);
     if (exchanges_.empty()) {
@@ -116,6 +121,8 @@ void MarketScanner::scanLoop() {
                 if (!stock_list.empty()) {
                     watch_lists_[exch_name] = stock_list;
                     LOG_INFO("Loaded " + std::to_string(stock_list.size()) + " stocks from " + exch_name);
+                    // 初始化历史成交量数据（用于爆发检测量比计算）
+                    initVolumeHistory(exchange, stock_list);
                 }
             }
         }
@@ -173,12 +180,12 @@ void MarketScanner::performScan(const std::shared_ptr<IExchange>& exchange) {
         watch_list = it->second;
     }
     
-    LOG_INFO("Starting market scan for " + exch_name + "...");
+    LOG_INFO("Starting breakout scan for " + exch_name + " (" + std::to_string(watch_list.size()) + " stocks)...");
     
     // 获取市场数据
     auto results = batchFetchMarketData(exchange, watch_list);
     
-    // 筛选符合条件的股票
+    // 筛选符合爆发条件的股票
     std::vector<ScanResult> filtered_results;
     for (const auto& result : results) {
         if (meetsSelectionCriteria(result)) {
@@ -186,15 +193,35 @@ void MarketScanner::performScan(const std::shared_ptr<IExchange>& exchange) {
         }
     }
     
-    // 按评分排序
+    // 按爆发评分排序
     std::sort(filtered_results.begin(), filtered_results.end(),
         [](const ScanResult& a, const ScanResult& b) {
             return a.score > b.score;
         });
     
-    // 只保留前top_n名（从配置文件读取）
+    // 只保留前top_n名
     if (filtered_results.size() > static_cast<size_t>(scanner_params_.top_n)) {
         filtered_results.resize(scanner_params_.top_n);
+    }
+    
+    // 打印爆发股详情
+    if (!filtered_results.empty()) {
+        std::stringstream ss;
+        ss << "\n=== Breakout Scan Results (" << exch_name << ") ===";
+        for (size_t i = 0; i < filtered_results.size(); ++i) {
+            const auto& r = filtered_results[i];
+            ss << "\n  #" << (i + 1) << " " << r.symbol << " " << r.stock_name
+               << " | Price: " << r.price
+               << " | Chg: " << std::fixed << std::setprecision(2) << (r.change_ratio * 100) << "%"
+               << " | VolRatio: " << std::setprecision(1) << r.volume_ratio << "x"
+               << " | Amp: " << std::setprecision(2) << (r.amplitude * 100) << "%"
+               << " | Speed: " << std::setprecision(2) << (r.speed * 100) << "%"
+               << " | Turnover: " << std::setprecision(2) << (r.turnover_rate * 100) << "%"
+               << " | B/A: " << std::setprecision(2) << r.bid_ask_ratio
+               << " | vsHigh: " << std::setprecision(2) << (r.price_vs_high * 100) << "%"
+               << " | Score: " << std::setprecision(1) << r.score;
+        }
+        LOG_INFO(ss.str());
     }
     
     // 更新合格股票列表
@@ -206,7 +233,7 @@ void MarketScanner::performScan(const std::shared_ptr<IExchange>& exchange) {
         }
     }
     
-    LOG_INFO("Scan completed for " + exch_name + ": found " + std::to_string(filtered_results.size()) + " qualified stocks");
+    LOG_INFO("Scan completed for " + exch_name + ": found " + std::to_string(filtered_results.size()) + " breakout stocks");
     
     // 将结果传递给策略管理器
     if (!filtered_results.empty()) {
@@ -235,11 +262,20 @@ std::vector<ScanResult> MarketScanner::batchFetchMarketData(const std::shared_pt
             // 调用交易所的批量快照接口
             auto snapshots = exchange->getBatchSnapshots(batch);
             
-            // 转换为ScanResult并计算评分
+            // 转换为ScanResult并计算爆发指标和评分
             for (const auto& pair : snapshots) {
                 ScanResult result = convertSnapshotToScanResult(pair.second, exchange->getName(), exchange);
                 result.score = calculateScore(result);
                 all_results.push_back(result);
+                
+                // 更新历史数据（用于下次计算涨速）
+                updateVolumeHistory(result.symbol, pair.second.volume, pair.second.last_price);
+                
+                // 缓存本次快照（用于计算涨速）
+                {
+                    std::lock_guard<std::mutex> lock(last_snapshots_mutex_);
+                    last_snapshots_[result.symbol] = pair.second;
+                }
             }
             
             // 批次间隔，避免过快请求
@@ -260,11 +296,40 @@ ScanResult MarketScanner::convertSnapshotToScanResult(const Snapshot& snapshot,
     result.symbol = snapshot.symbol;
     result.stock_name = snapshot.name;
     result.price = snapshot.last_price;
-    result.change_ratio = snapshot.price_change/snapshot.last_price;
+    result.change_ratio = (snapshot.pre_close > 0) ? 
+        (snapshot.last_price - snapshot.pre_close) / snapshot.pre_close : 0.0;
     result.volume = snapshot.volume;
     result.turnover_rate = snapshot.turnover_rate;
     result.exchange_name = exchange_name;
-    result.exchange = exchange;  // 止了订阅事件，丐稀消息不需要exchange指针
+    result.exchange = exchange;
+    
+    // === 爆发检测指标计算 ===
+    
+    // 1. 量比（当前成交量 / 历史平均成交量，按交易时间外推）
+    result.volume_ratio = calculateVolumeRatio(snapshot.symbol, snapshot.volume);
+    
+    // 2. 振幅（日内波动幅度）
+    if (snapshot.open_price > 0) {
+        result.amplitude = (snapshot.high_price - snapshot.low_price) / snapshot.open_price;
+    }
+    
+    // 3. 涨速（与上次扫描相比的价格变化速度）
+    result.speed = calculateSpeed(snapshot.symbol, snapshot.last_price);
+    
+    // 4. 委买委卖比
+    result.bid_ask_ratio = calculateBidAskRatio(snapshot);
+    
+    // 5. 价格信息
+    result.open_price = snapshot.open_price;
+    result.high_price = snapshot.high_price;
+    result.low_price = snapshot.low_price;
+    result.pre_close = snapshot.pre_close;
+    
+    // 6. 距离最高价的比例（越小说明越接近新高，主力正在拉升）
+    if (snapshot.high_price > 0) {
+        result.price_vs_high = (snapshot.high_price - snapshot.last_price) / snapshot.high_price;
+    }
+    
     return result;
 }
 
@@ -298,45 +363,220 @@ bool MarketScanner::isInOpeningPeriod() const {
     int hour = time_pair.first;
     int minute = time_pair.second;
     
-    // 开盘后30分钟内（9:30-10:00）为关键追涨时段
-    return (hour == 9 && minute >= 30) || (hour == 10 && minute < 60);
+    // 开盘后30分钟（9:30-10:00）和下午开盘后（13:00-13:30）
+    // 这两个时段是爆发股最容易出现的关键窗口
+    bool morning_opening = (hour == 9 && minute >= 30) || (hour == 10 && minute == 0);
+    bool afternoon_opening = (hour == 13 && minute < 30);
+    return morning_opening || afternoon_opening;
 }
 
 bool MarketScanner::meetsSelectionCriteria(const ScanResult& result) const {
-    // 筛选条件：追涨杀跌策略
+    // ===== 港股爆发股筛选条件 =====
+    // 核心思路：找到成交量突然放大、价格快速拉升的个股
     
-    // 1. 涨幅在1%到8%之间（强势但不是极端）
-    if (result.change_ratio < 0.01 || result.change_ratio > 0.08) {
+    // 1. 价格过滤（避免仙股和超大盘股）
+    if (result.price < scanner_params_.min_price || result.price > scanner_params_.max_price) {
         return false;
     }
     
-    // 2. 有足够的成交量（换手率大于1%）
-    if (result.turnover_rate < 0.01) {
+    // 2. 涨幅范围：必须正向上涨
+    //    太低(<2%) = 不够强势，太高(>10%) = 追高风险大
+    if (result.change_ratio < scanner_params_.breakout_change_ratio_min || 
+        result.change_ratio > scanner_params_.breakout_change_ratio_max) {
         return false;
     }
     
-    // 3. 价格合理（5元到500元之间）
-    if (result.price < 5.0 || result.price > 500.0) {
+    // 3. 量比条件：成交量异常放大是爆发的核心信号
+    //    量比 >= 2.5 表示成交量显著超过近5日平均水平
+    if (result.volume_ratio < scanner_params_.breakout_volume_ratio_min) {
         return false;
+    }
+    
+    // 4. 振幅条件：有波动才有操作空间
+    if (result.amplitude < scanner_params_.breakout_amplitude_min) {
+        return false;
+    }
+    
+    // 5. 换手率：市场关注度和流动性
+    if (result.turnover_rate < scanner_params_.min_turnover_rate) {
+        return false;
+    }
+    
+    // 6. 绝对成交量过滤
+    if (result.volume < scanner_params_.min_volume) {
+        return false;
+    }
+    
+    // 7. 买卖力量：买盘应强于卖盘
+    if (result.bid_ask_ratio < 0.8) {
+        return false;  // 卖压太大，不适合追涨
+    }
+    
+    // 8. 距离最高价：不追已经大幅回落的股票
+    //    价格在日内最高价附近 => 主力还在拉升
+    if (result.price_vs_high > 0.05) {
+        return false;  // 距最高价超5%，可能已回落
     }
     
     return true;
 }
 
 double MarketScanner::calculateScore(const ScanResult& result) const {
-    // 综合评分算法
+    // ===== 港股爆发股综合评分算法 =====
+    // 每个维度归一化到 [0, 1]，然后加权求和
     double score = 0.0;
     
-    // 涨幅权重：40%
-    score += result.change_ratio * 40.0;
+    // 1. 量比评分（权重35%）：量比越大越好，超过10x后边际递减
+    double volume_score = std::min(1.0, result.volume_ratio / 10.0);
+    score += volume_score * scanner_params_.breakout_score_weight_volume;
     
-    // 换手率权重：30%
-    score += result.turnover_rate * 30.0;
+    // 2. 涨幅评分（权重25%）：3-6% 是甘蜜区间
+    double change_score = 0.0;
+    if (result.change_ratio >= 0.03 && result.change_ratio <= 0.06) {
+        change_score = 1.0;  // 甘蜜区间
+    } else if (result.change_ratio > 0.06) {
+        change_score = std::max(0.0, 1.0 - (result.change_ratio - 0.06) / 0.04);
+    } else {
+        change_score = result.change_ratio / 0.03;
+    }
+    score += change_score * scanner_params_.breakout_score_weight_change;
     
-    // 成交量权重：30%（标准化到0-1）
-    double volume_score = std::min(1.0, result.volume / 100000000.0);
-    score += volume_score * 30.0;
+    // 3. 涨速评分（权重25%）：涨速越快势头越猛
+    double speed_score = std::min(1.0, std::max(0.0, result.speed * 100.0));
+    score += speed_score * scanner_params_.breakout_score_weight_speed;
+    
+    // 4. 换手率评分（权重15%）
+    double turnover_score = std::min(1.0, result.turnover_rate / 0.10);
+    score += turnover_score * scanner_params_.breakout_score_weight_turnover;
+    
+    // 5. 加分：买盘压倒性优势
+    if (result.bid_ask_ratio > 2.0) {
+        score += 5.0;
+    }
+    
+    // 6. 加分：接近日内新高（主力正在拉升）
+    if (result.price_vs_high < 0.01) {
+        score += 5.0;
+    }
+    
+    // 7. 开盘时段加分（开盘爆发更有持续性）
+    if (isInOpeningPeriod()) {
+        score *= 1.1;
+    }
     
     return score;
+}
+
+// ===== 爆发检测核心方法 =====
+
+double MarketScanner::calculateVolumeRatio(const std::string& symbol, int64_t current_volume) const {
+    std::lock_guard<std::mutex> lock(volume_history_mutex_);
+    
+    auto it = volume_history_.find(symbol);
+    if (it == volume_history_.end() || it->second.avg_volume <= 0) {
+        return 1.0;  // 没有历史数据，默认量比为1
+    }
+    
+    // 根据当日已过交易时间对成交量进行估算
+    // 港股交易时间 9:30-12:00 + 13:00-16:00 共330分钟
+    auto time_pair = getCurrentTime();
+    int current_min = time_pair.first * 60 + time_pair.second;
+    
+    int elapsed_minutes = 0;
+    int morning_open = 9 * 60 + 30;
+    int morning_close = 12 * 60;
+    int afternoon_open = 13 * 60;
+    
+    if (current_min <= morning_close) {
+        elapsed_minutes = std::max(1, current_min - morning_open);
+    } else if (current_min < afternoon_open) {
+        elapsed_minutes = morning_close - morning_open;  // 150分钟
+    } else {
+        elapsed_minutes = (morning_close - morning_open) + std::max(1, current_min - afternoon_open);
+    }
+    
+    // 按已过时间外推估算全天成交量
+    double total_trading_minutes = 330.0;
+    double estimated_daily_volume = (double)current_volume * total_trading_minutes / elapsed_minutes;
+    
+    return estimated_daily_volume / it->second.avg_volume;
+}
+
+double MarketScanner::calculateSpeed(const std::string& symbol, double current_price) const {
+    std::lock_guard<std::mutex> lock(last_snapshots_mutex_);
+    
+    auto it = last_snapshots_.find(symbol);
+    if (it == last_snapshots_.end() || it->second.last_price <= 0) {
+        return 0.0;
+    }
+    
+    // 涨速 = (当前价 - 上次价) / 上次价
+    return (current_price - it->second.last_price) / it->second.last_price;
+}
+
+double MarketScanner::calculateBidAskRatio(const Snapshot& snapshot) const {
+    if (snapshot.ask_volume_1 <= 0) {
+        return (snapshot.bid_volume_1 > 0) ? 10.0 : 1.0;
+    }
+    return (double)snapshot.bid_volume_1 / snapshot.ask_volume_1;
+}
+
+void MarketScanner::updateVolumeHistory(const std::string& symbol, int64_t volume, double price) {
+    std::lock_guard<std::mutex> lock(volume_history_mutex_);
+    auto& history = volume_history_[symbol];
+    history.last_price = price;
+    history.last_scan_time = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count();
+}
+
+void MarketScanner::initVolumeHistory(
+    const std::shared_ptr<IExchange>& exchange, 
+    const std::vector<std::string>& symbols) {
+    
+    if (!exchange || !exchange->isConnected()) return;
+    
+    LOG_INFO("Initializing volume history for breakout detection (" + 
+             std::to_string(symbols.size()) + " symbols)...");
+    
+    int count = 0;
+    
+    for (const auto& symbol : symbols) {
+        if (!running_) break;
+        
+        try {
+            // 获取近N日的日K线数据
+            auto klines = exchange->getHistoryKLine(symbol, "K_DAY", VOLUME_HISTORY_DAYS + 1);
+            
+            if (klines.size() >= 2) {
+                std::lock_guard<std::mutex> lock(volume_history_mutex_);
+                auto& history = volume_history_[symbol];
+                history.daily_volumes.clear();
+                
+                // 跳过当天数据（最后一条），使用之前的历史数据
+                for (size_t j = 0; j < klines.size() - 1; ++j) {
+                    history.daily_volumes.push_back(klines[j].volume);
+                }
+                
+                // 计算平均成交量
+                if (!history.daily_volumes.empty()) {
+                    int64_t total = 0;
+                    for (auto v : history.daily_volumes) total += v;
+                    history.avg_volume = total / (int64_t)history.daily_volumes.size();
+                }
+                
+                history.last_price = klines.back().close_price;
+                count++;
+            }
+        } catch (const std::exception& e) {
+            // 静默跳过失败的个股
+            (void)e;
+        }
+        
+        if (count % 50 == 0 && count > 0) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        }
+    }
+    
+    LOG_INFO("Volume history initialized for " + std::to_string(count) + " stocks");
 }
 

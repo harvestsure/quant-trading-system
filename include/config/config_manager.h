@@ -33,6 +33,16 @@ struct ScannerParams {
     double min_volume = 1000000;
     double min_turnover_rate = 0.01;
     int top_n = 10;
+
+    // === 爆发股筛选参数 ===
+    double breakout_volume_ratio_min = 2.5;   // 最小量比
+    double breakout_change_ratio_min = 0.02;  // 最小涨幅
+    double breakout_change_ratio_max = 0.10;  // 最大涨幅（避免追涨停）
+    double breakout_amplitude_min = 0.02;     // 最小振幅
+    double breakout_score_weight_volume = 35.0;  // 量比评分权重
+    double breakout_score_weight_change = 25.0;  // 涨幅评分权重
+    double breakout_score_weight_speed = 25.0;   // 涨速评分权重
+    double breakout_score_weight_turnover = 15.0; // 换手率评分权重
 };
 
 // 风险管理参数
@@ -52,6 +62,21 @@ struct MomentumStrategyParams {
     int rsi_overbought = 70;
     int ma_period = 20;
     double volume_factor = 1.5;
+
+    // === 港股爆发追涨杀跌参数 ===
+    double breakout_volume_ratio = 3.0;     // 爆发量比阈值（当前量/均量 >= 3倍）
+    double breakout_change_min = 0.03;      // 最小涨幅 3%
+    double breakout_change_max = 0.08;      // 最大涨幅 8%（避免追太高）
+    double breakout_amplitude_min = 0.03;   // 最小振幅 3%
+    double breakout_turnover_min = 0.03;    // 最小换手率 3%
+    double chase_trailing_stop = 0.025;     // 追涨移动止损 2.5%
+    double chase_hard_stop_loss = 0.03;     // 硬止损 3%
+    double chase_take_profit = 0.08;        // 止盈 8%
+    double chase_rsi_max = 80.0;            // RSI 超买上限
+    double chase_rsi_min = 40.0;            // RSI 下限
+    double momentum_exit_speed = -0.005;    // 动量反转退出阈值（涨速低于-0.5%时退出）
+    int momentum_stale_minutes = 15;        // 动量停滞超时（分钟），超时无新高则退出
+    double price_vs_high_max = 0.03;        // 追涨时距最高价不超过3%
 };
 
 struct StrategyParams {
