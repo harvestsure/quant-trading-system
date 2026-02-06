@@ -4,3 +4,6 @@
 [submodule "libraries/dylib"]
 	path = libraries/dylib
 	url = https://github.com/martin-olivier/dylib.git
+[submodule "libraries/cpp-httplib"]
+	path = libraries/cpp-httplib
+	url = https://github.com/yhirose/cpp-httplib.git
