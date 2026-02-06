@@ -24,14 +24,14 @@ bool RiskManager::checkOrderRisk(const std::string& symbol, int quantity, double
     
     // 检查每日亏损限制
     if (metrics_.daily_pnl_ratio < -config.risk.max_daily_loss) {
-        LOG_WARNING("Daily loss limit reached, order rejected");
+        LOG_WARN("Daily loss limit reached, order rejected");
         return false;
     }
     
     // 检查持仓数量
     if (!pos_mgr.hasPosition(symbol) && 
         pos_mgr.getTotalPositions() >= config.trading.max_positions) {
-        LOG_WARNING("Max positions limit reached, order rejected");
+        LOG_WARN("Max positions limit reached, order rejected");
         return false;
     }
     
@@ -44,13 +44,13 @@ bool RiskManager::checkOrderRisk(const std::string& symbol, int quantity, double
         std::stringstream ss;
         ss << "Single stock ratio " << ratio << " exceeds limit " 
            << config.trading.single_stock_max_ratio << ", order rejected";
-        LOG_WARNING(ss.str());
+        LOG_WARN(ss.str());
         return false;
     }
     
     // 检查资金充足性
     if (order_value > current_capital_ * 0.95) {
-        LOG_WARNING("Insufficient capital, order rejected");
+        LOG_WARN("Insufficient capital, order rejected");
         return false;
     }
     
@@ -70,7 +70,7 @@ bool RiskManager::shouldStopLoss(const std::string& symbol, double current_price
         std::stringstream ss;
         ss << "Stop loss triggered for " << symbol 
            << " loss_ratio=" << loss_ratio;
-        LOG_WARNING(ss.str());
+        LOG_WARN(ss.str());
         return true;
     }
     

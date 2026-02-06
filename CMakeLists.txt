@@ -39,6 +39,17 @@ else()
 endif()
 
 
+# cpp-httplib (header-only) - prefer checked-in submodule under libraries/cpp-httplib
+# If the submodule exists, expose an INTERFACE target providing the include directory
+if(EXISTS ${CMAKE_SOURCE_DIR}/libraries/cpp-httplib/httplib.h)
+    message(STATUS "Using cpp-httplib from libraries/cpp-httplib submodule")
+    add_library(cpp_httplib INTERFACE)
+    target_include_directories(cpp_httplib INTERFACE ${CMAKE_SOURCE_DIR}/libraries/cpp-httplib)
+else()
+    message(STATUS "cpp-httplib not found in libraries/cpp-httplib; skipping header include")
+endif()
+
+
 # 交易所配置
 include(cmake/futu.cmake)
 if(ENABLE_FUTU)
@@ -74,6 +85,9 @@ set(BASE_LIBS
     src/exchange/exchange_factory.cpp
     src/exchange/exchange_manager.cpp
     src/event/event_engine.cpp
+    src/notification/notification_queue.cpp
+    src/notification/telegram_sender.cpp
+    src/notification/notification_manager.cpp
     src/utils/logger.cpp
     src/utils/stringsUtils.cpp
 )
@@ -84,6 +98,10 @@ target_link_libraries(project_base_libs PUBLIC nlohmann_json::nlohmann_json)
 
 if(TARGET dylib)
     target_link_libraries(project_base_libs PUBLIC dylib)
+endif()
+
+if(TARGET cpp_httplib)
+    target_link_libraries(project_base_libs PUBLIC cpp_httplib)
 endif()
 
 # 核心源文件（总是编译）

@@ -23,7 +23,7 @@ bool IBKRExchange::connect() {
     std::lock_guard<std::mutex> lock(mutex_);
     
     if (connected_) {
-        LOG_WARNING("IBKR Exchange already connected");
+        LOG_WARN("IBKR Exchange already connected");
         return true;
     }
     

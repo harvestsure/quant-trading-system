@@ -128,6 +128,24 @@ void ConfigManager::parseJsonConfig(const json& j) {
         config_.logging.file = logging.value("file", true);
         config_.logging.file_dir = logging.value("file_dir", "logs");
     }
+    
+    // 解析通知配置
+    if (j.contains("notification")) {
+        const auto& notification = j["notification"];
+        
+        // 解析Telegram配置
+        if (notification.contains("telegram")) {
+            const auto& telegram = notification["telegram"];
+            config_.notification.telegram.enabled = telegram.value("enabled", false);
+            config_.notification.telegram.bot_token = telegram.value("bot_token", "");
+            config_.notification.telegram.chat_id = telegram.value("chat_id", "");
+            config_.notification.telegram.api_timeout_seconds = telegram.value("api_timeout_seconds", 5);
+            config_.notification.telegram.max_queue_size = telegram.value("max_queue_size", 1000);
+            config_.notification.telegram.batch_send = telegram.value("batch_send", false);
+            config_.notification.telegram.batch_size = telegram.value("batch_size", 10);
+            config_.notification.telegram.batch_interval_ms = telegram.value("batch_interval_ms", 1000);
+        }
+    }
 }
 
 void ConfigManager::parseConfigLine(const std::string& line) {

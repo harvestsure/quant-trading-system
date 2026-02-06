@@ -66,6 +66,23 @@ struct LoggingConfig {
     std::string file_dir = "logs/";
 };
 
+// Telegram通知配置
+struct TelegramConfig {
+    bool enabled = false;
+    std::string bot_token;
+    std::string chat_id;
+    int api_timeout_seconds = 5;
+    size_t max_queue_size = 1000;
+    bool batch_send = false;
+    int batch_size = 10;
+    int batch_interval_ms = 1000;
+};
+
+// 通知配置
+struct NotificationConfig {
+    TelegramConfig telegram;
+};
+
 // 完整配置结构
 struct TradingConfig {
     std::vector<ExchangeInstanceConfig> exchanges;  // 多交易所配置列表
@@ -74,6 +91,7 @@ struct TradingConfig {
     RiskParams risk;
     StrategyParams strategy;
     LoggingConfig logging;
+    NotificationConfig notification;
 };
 
 class ConfigManager {
@@ -95,6 +113,10 @@ public:
     std::vector<ExchangeInstanceConfig> getEnabledExchanges() const;
     const ExchangeInstanceConfig* getExchange(const std::string& name) const;
     bool isSimulation() const { return config_.exchanges.empty() ? true : config_.exchanges[0].is_simulation; }
+    
+    // 便捷访问方法 - 通知配置
+    const NotificationConfig& getNotificationConfig() const { return config_.notification; }
+    const TelegramConfig& getTelegramConfig() const { return config_.notification.telegram; }
     
     // 禁止拷贝
     ConfigManager(const ConfigManager&) = delete;

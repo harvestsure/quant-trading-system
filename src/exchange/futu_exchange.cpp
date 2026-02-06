@@ -1020,7 +1020,7 @@ std::vector<std::string> FutuExchange::getMarketStockList() {
         writeLog(LogLevel::Error, std::string("Exception during get market stock list: ") + e.what());
     }
     #else
-    LOG_WARNING("FTAPI is not enabled, returning sample stocks");
+    LOG_WARN("FTAPI is not enabled, returning sample stocks");
     stocks.push_back("00700");  // 腾讯
     stocks.push_back("09988");  // 阿里巴巴
     stocks.push_back("03690");  // 美团

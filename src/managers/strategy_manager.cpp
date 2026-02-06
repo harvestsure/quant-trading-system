@@ -70,7 +70,7 @@ void StrategyManager::createStrategyInstance(const std::string& symbol, const Sc
     if (hasStrategyInstance(symbol)) {
         std::stringstream ss;
         ss << "Strategy instance already exists for " << symbol;
-        LOG_WARNING(ss.str());
+        LOG_WARN(ss.str());
         return;
     }
     
@@ -89,17 +89,17 @@ void StrategyManager::createStrategyInstance(const std::string& symbol, const Sc
         
         // 订阅 K 线数据（1分钟）
         if (!scan_result.exchange->subscribeKLine(symbol, "1m")) {
-            LOG_WARNING("Failed to subscribe KLine for " + symbol + " on " + exchange_name);
+            LOG_WARN("Failed to subscribe KLine for " + symbol + " on " + exchange_name);
         }
         
         // 订阅 Tick 数据
         if (!scan_result.exchange->subscribeTick(symbol)) {
-            LOG_WARNING("Failed to subscribe Tick for " + symbol + " on " + exchange_name);
+            LOG_WARN("Failed to subscribe Tick for " + symbol + " on " + exchange_name);
         }
         
         LOG_INFO("Subscribed market data for " + symbol + " on " + exchange_name);
     } else {
-        LOG_WARNING("Exchange not ready for " + symbol + ", cannot subscribe market data");
+        LOG_WARN("Exchange not ready for " + symbol + ", cannot subscribe market data");
     }
     
     // 启动策略
@@ -141,7 +141,7 @@ void StrategyManager::removeStrategyInstance(const std::string& symbol, bool for
         std::stringstream ss;
         ss << "Cannot remove strategy for " << symbol 
            << " - has active position, will keep monitoring";
-        LOG_WARNING(ss.str());
+        LOG_WARN(ss.str());
         
         // 标记为不活跃，但保留策略实例继续监控持仓
         it->second.is_active = false;

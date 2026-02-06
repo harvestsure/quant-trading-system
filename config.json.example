@@ -64,5 +64,17 @@
     "console": true,
     "file": true,
     "file_dir": "logs/"
+  },
+  "notification": {
+    "telegram": {
+      "enabled": false,
+      "bot_token": "YOUR_BOT_TOKEN_HERE",
+      "chat_id": "YOUR_CHAT_ID_HERE",
+      "api_timeout_seconds": 5,
+      "max_queue_size": 1000,
+      "batch_send": false,
+      "batch_size": 10,
+      "batch_interval_ms": 1000
+    }
   }
 }

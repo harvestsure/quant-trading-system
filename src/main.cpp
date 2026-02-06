@@ -128,7 +128,7 @@ int main(int argc, char* argv[]) {
     auto exchanges = exchange_mgr.getAllExchanges();
     for (auto& exchange : exchanges) {
         if (!exchange->connect()) {
-            LOG_WARNING("Failed to connect to exchange: " + exchange->getName());
+            LOG_WARN("Failed to connect to exchange: " + exchange->getName());
         } else {
             LOG_INFO("Connected to exchange: " + exchange->getName());
         }

@@ -13,7 +13,7 @@ EventEngine::~EventEngine() {
 
 void EventEngine::start() {
     if (running_) {
-        LOG_WARNING("EventEngine is already running");
+        LOG_WARN("EventEngine is already running");
         return;
     }
     
@@ -77,7 +77,7 @@ void EventEngine::unregisterHandler(EventType type, int handler_id) {
 
 void EventEngine::putEvent(const EventPtr& event) {
     if (!event) {
-        LOG_WARNING("Attempted to put null event");
+        LOG_WARN("Attempted to put null event");
         return;
     }
     

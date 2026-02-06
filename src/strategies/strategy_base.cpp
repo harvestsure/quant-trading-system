@@ -16,7 +16,7 @@ StrategyBase::StrategyBase(const std::string& name)
 
 void StrategyBase::start() {
     if (running_) {
-        LOG_WARNING("Strategy already running: " + name_);
+        LOG_WARN("Strategy already running: " + name_);
         return;
     }
     

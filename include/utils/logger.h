@@ -37,5 +37,5 @@ private:
 // 便捷宏
 #define LOG_DEBUG(msg) Logger::getInstance().log(LogLevel::Debug, msg)
 #define LOG_INFO(msg) Logger::getInstance().log(LogLevel::Info, msg)
-#define LOG_WARNING(msg) Logger::getInstance().log(LogLevel::Warn, msg)
+#define LOG_WARN(msg) Logger::getInstance().log(LogLevel::Warn, msg)
 #define LOG_ERROR(msg) Logger::getInstance().log(LogLevel::Error, msg)

@@ -42,7 +42,7 @@ bool ExchangeManager::initAllExchanges(const std::vector<ExchangeInstanceConfig>
     for (const auto& config : configs) {
         if (config.is_enabled) {
             if (!initExchange(config)) {
-                LOG_WARNING("Failed to initialize exchange: " + config.name);
+                LOG_WARN("Failed to initialize exchange: " + config.name);
             }
         }
     }

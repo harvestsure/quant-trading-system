@@ -30,7 +30,7 @@ void MomentumStrategy::onScanResult(const ScanResult& result) {
     auto klines = getHistoryKLine(result.symbol, "K_5M", 100);
     
     if (klines.empty()) {
-        LOG_WARNING("No historical data for " + result.symbol);
+        LOG_WARN("No historical data for " + result.symbol);
         return;
     }
     

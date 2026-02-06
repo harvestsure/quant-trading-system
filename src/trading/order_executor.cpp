@@ -86,7 +86,7 @@ bool OrderExecutor::cancelOrder(const std::string& order_id) {
     
     if (order.status == OrderStatus::FILLED || 
         order.status == OrderStatus::CANCELLED) {
-        LOG_WARNING("Cannot cancel order in current status: " + order_id);
+        LOG_WARN("Cannot cancel order in current status: " + order_id);
         return false;
     }
     

@@ -27,7 +27,7 @@ void MarketScanner::addExchange(std::shared_ptr<IExchange> exchange) {
 
 void MarketScanner::start() {
     if (running_) {
-        LOG_WARNING("Market scanner already running");
+        LOG_WARN("Market scanner already running");
         return;
     }
     
@@ -167,7 +167,7 @@ void MarketScanner::performScan(const std::shared_ptr<IExchange>& exchange) {
         std::lock_guard<std::mutex> lock(watch_list_mutex_);
         auto it = watch_lists_.find(exch_name);
         if (it == watch_lists_.end() || it->second.empty()) {
-            LOG_WARNING("No watch list for exchange: " + exch_name);
+            LOG_WARN("No watch list for exchange: " + exch_name);
             return;
         }
         watch_list = it->second;
