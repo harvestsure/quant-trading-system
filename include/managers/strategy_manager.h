@@ -21,83 +21,83 @@ struct ScanResult {
     double change_ratio;
     double volume;
     double turnover_rate;
-    double score;  // 评分
-    std::string exchange_name;  // 交易所名称
-    std::shared_ptr<IExchange> exchange;  // 交易所实例
+    double score;  // score
+    std::string exchange_name;  // exchange name
+    std::shared_ptr<IExchange> exchange;  // exchange instance
 
-    // === 爆发检测指标 ===
-    double volume_ratio = 0.0;      // 量比：当前成交量 / 历史平均成交量
-    double amplitude = 0.0;         // 振幅：(最高价 - 最低价) / 开盘价
-    double speed = 0.0;             // 涨速：近几分钟的价格变化率
-    double bid_ask_ratio = 0.0;     // 委买委卖比：买盘力量 / 卖盘力量
-    double open_price = 0.0;        // 开盘价
-    double high_price = 0.0;        // 最高价
-    double low_price = 0.0;         // 最低价
-    double pre_close = 0.0;         // 昨收价
-    double price_vs_high = 0.0;     // 当前价距最高价比例：(high - price) / high
+    // === Breakout detection metrics ===
+    double volume_ratio = 0.0;      // Volume ratio: current volume / historical average volume
+    double amplitude = 0.0;         // Amplitude: (high - low) / open
+    double speed = 0.0;             // Speed: recent minutes' price change rate
+    double bid_ask_ratio = 0.0;     // Bid-ask ratio: buy strength / sell strength
+    double open_price = 0.0;        // open price
+    double high_price = 0.0;        // high price
+    double low_price = 0.0;         // low price
+    double pre_close = 0.0;         // previous close
+    double price_vs_high = 0.0;     // price distance to high: (high - price) / high
 };
 
-// 策略实例信息
+// Strategy instance information
 struct StrategyInstance {
     std::string symbol;
     std::shared_ptr<StrategyBase> strategy;
     bool is_active;
-    std::string exchange_name;  // 交易所名称
-    std::shared_ptr<IExchange> exchange;  // 对应的交易所实例
+    std::string exchange_name;  // exchange name
+    std::shared_ptr<IExchange> exchange;  // corresponding exchange instance
 };
 
 class StrategyManager {
 public:
     static StrategyManager& getInstance();
     
-    // 初始化事件系统
+    // Initialize event handlers
     void initializeEventHandlers(IEventEngine* event_engine);
-    
-    // 动态策略管理 - 根据扫描结果创建/删除策略实例
+
+    // Dynamic strategy management - create/remove strategy instances based on scan results
     void processScanResults(const std::vector<ScanResult>& results);
-    
-    // 策略实例管理
+
+    // Strategy instance management
     void createStrategyInstance(const std::string& symbol, const ScanResult& scan_result);
     void removeStrategyInstance(const std::string& symbol, bool force = false);
     bool hasStrategyInstance(const std::string& symbol) const;
-    
-    // 启动/停止所有策略
+
+    // Start/stop all strategies
     void startAllStrategies();
     void stopAllStrategies();
-    
-    // 策略状态
+
+    // Strategy status
     size_t getActiveStrategyCount() const;
     std::vector<std::string> getStrategyStockCodes() const;
     void printStrategyStatus() const;
     
-    // 禁止拷贝
+    // Non-copyable
     StrategyManager(const StrategyManager&) = delete;
     StrategyManager& operator=(const StrategyManager&) = delete;
     
 private:
     StrategyManager() = default;
     
-    // 股票代码 -> 策略实例
+    // stock symbol -> strategy instance
     std::map<std::string, StrategyInstance> strategy_instances_;
-    
-    // 上一次扫描的股票代码集合
+
+    // set of stock symbols from last scan
     std::set<std::string> last_scan_stocks_;
-    
-    // 事件引擎指针
+
+    // event engine pointer
     IEventEngine* event_engine_ = nullptr;
-    
-    // 事件处理器IDs
+
+    // event handler IDs
     int kline_handler_id_ = -1;
     int tick_handler_id_ = -1;
     int trade_handler_id_ = -1;
     
     mutable std::mutex mutex_;
     
-    // 内部辅助函数
+    // internal helper functions
     bool canRemoveStrategy(const std::string& symbol) const;
     std::shared_ptr<StrategyBase> createStrategy(const std::string& symbol, const ScanResult& scan_result);
-    
-    // 事件处理函数
+
+    // event handlers
     void onKLineEvent(const EventPtr& event);
     void onTickEvent(const EventPtr& event);
     void onTradeEvent(const EventPtr& event);

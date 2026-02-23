@@ -6,7 +6,7 @@
 #include <chrono>
 #include <iomanip>
 
-// 注意：这里需要包含Futu API的头文件
+// Note: Futu API header files need to be included here
 // #include "ftdc_trader_api.h"
 
 OrderExecutor& OrderExecutor::getInstance() {
@@ -23,7 +23,7 @@ std::string OrderExecutor::placeOrder(
     
     std::lock_guard<std::mutex> lock(mutex_);
     
-    // 风险检查
+    // Risk check
     auto& risk_mgr = RiskManager::getInstance();
     int signed_qty = (side == OrderSide::BUY) ? quantity : -quantity;
     
@@ -32,7 +32,7 @@ std::string OrderExecutor::placeOrder(
         return "";
     }
     
-    // 创建订单
+    // Create order
     OrderData order;
     order.order_id = generateOrderId();
     order.symbol = symbol;
@@ -47,7 +47,7 @@ std::string OrderExecutor::placeOrder(
     order.create_time = std::chrono::system_clock::to_time_t(now) * 1000;
     order.update_time = order.create_time;
     
-    // TODO: 调用Futu API下单
+    // TODO: Call Futu API to place order
     /*
     FTDC_Trader_API* api = FTDC_Trader_API::getInstance();
     bool success = api->placeOrder(order);
@@ -65,7 +65,7 @@ std::string OrderExecutor::placeOrder(
            << " " << quantity << " @ " << price;
     LOG_INFO(log_ss.str());
     
-    // 模拟订单立即成交（实际应该由Futu API回调通知）
+    // Simulate order filled immediately (should actually be notified by Futu API callback)
     order.status = OrderStatus::FILLED;
     order.traded_volume = quantity;
     onOrderUpdate(order);
@@ -90,7 +90,7 @@ bool OrderExecutor::cancelOrder(const std::string& order_id) {
         return false;
     }
     
-    // TODO: 调用Futu API撤单
+    // TODO: Call Futu API to cancel order
     /*
     FTDC_Trader_API* api = FTDC_Trader_API::getInstance();
     bool success = api->cancelOrder(order_id);
@@ -127,10 +127,10 @@ std::map<std::string, OrderData> OrderExecutor::getAllOrders() {
 void OrderExecutor::onOrderUpdate(const OrderData& order) {
     std::lock_guard<std::mutex> lock(mutex_);
     
-    // 更新订单状态
+    // Update order status
     orders_[order.order_id] = order;
     
-    // 如果订单成交，更新持仓
+    // If order is filled, update position
     if (order.status == OrderStatus::FILLED || 
         order.status == OrderStatus::PARTIAL_FILLED) {
         

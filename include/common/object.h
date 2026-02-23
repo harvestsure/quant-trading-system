@@ -7,7 +7,7 @@
 #include "utils/logger_defines.h"
 
 
-// Tick数据（统一格式）
+// Tick data (unified format)
 struct TickData {
     std::string symbol;
     std::string exchange;
@@ -35,7 +35,7 @@ struct TickData {
     std::vector<int64_t> ask_volumes;
 };
 
-// K线数据（统一格式）
+// Kline data (unified format)
 struct KlineData {
     std::string symbol;
     std::string exchange;
@@ -43,7 +43,7 @@ struct KlineData {
     std::string datetime;
     std::string interval;
 
-    // 对应的枚举周期，保留 string 字段以兼容外部配置
+    // Corresponding enum interval; keep the string field for external config compatibility
     KlineInterval interval_enum = KlineInterval::K_1M;
 
     double open_price = 0.0;
@@ -54,7 +54,7 @@ struct KlineData {
     double turnover = 0.0;
 };
 
-// 订单数据（统一格式）
+// Order data (unified format)
 struct OrderData {
     std::string order_id;
     std::string exchange_order_id;
@@ -76,7 +76,7 @@ struct OrderData {
     std::string error_msg;
 };
 
-// 成交数据（统一格式）
+// Trade data (unified format)
 struct TradeData {
     std::string trade_id;
     std::string order_id;
@@ -93,7 +93,7 @@ struct TradeData {
     std::string strategy_name;
 };
 
-// 持仓数据（统一格式）
+// Position data (unified format)
 struct PositionData {
     std::string symbol;
     std::string exchange;
@@ -111,7 +111,7 @@ struct PositionData {
     double profit_loss_ratio = 0.0;
 };
 
-// 账户数据（统一格式）
+// Account data (unified format)
 struct AccountData {
     std::string account_id;
     std::string exchange;
@@ -125,7 +125,7 @@ struct AccountData {
     double profit_loss_ratio = 0.0;
 };
 
-// 交易信号数据
+// Trading signal data
 struct SignalData {
     std::string symbol;
     std::string strategy_name;
@@ -138,35 +138,35 @@ struct SignalData {
     int64_t timestamp = 0;
 };
 
-// 日志数据
+// Log data
 struct LogData {
     LogLevel level = LogLevel::Info;
     std::string message;
     int64_t timestamp = 0;
 };
-// 市场快照数据（用于市场扫描）
+// Market snapshot (used for market scanning)
 struct Snapshot {
-    std::string symbol;           // 股票代码
-    std::string name;             // 股票名称
-    std::string exchange;         // 交易所
-    int64_t timestamp;            // 时间戳（毫秒）
-    std::string datetime;         // 时间字符串
+    std::string symbol;           // Stock symbol
+    std::string name;             // Stock name
+    std::string exchange;         // Exchange
+    int64_t timestamp;            // Timestamp (milliseconds)
+    std::string datetime;         // Datetime string
 
-    double last_price = 0.0;      // 最新价格
-    double open_price = 0.0;      // 开盘价
-    double high_price = 0.0;      // 最高价
-    double low_price = 0.0;       // 最低价
-    double pre_close = 0.0;       // 前收盘价
+    double last_price = 0.0;      // Latest price
+    double open_price = 0.0;      // Open price
+    double high_price = 0.0;      // High price
+    double low_price = 0.0;       // Low price
+    double pre_close = 0.0;       // Previous close price
 
-    int64_t volume = 0;           // 成交量
-    double turnover = 0.0;        // 成交额
-    double turnover_rate = 0.0;   // 换手率（%）
+    int64_t volume = 0;           // Volume
+    double turnover = 0.0;        // Turnover
+    double turnover_rate = 0.0;   // Turnover rate (%)
 
-    double price_change = 0.0;    // 涨幅（%）
-    double price_change_abs = 0.0;// 涨幅（绝对值）
+    double price_change = 0.0;    // Price change (%)
+    double price_change_abs = 0.0;// Price change (absolute)
 
-    double bid_price_1 = 0.0;     // 买一价
-    int64_t bid_volume_1 = 0;     // 买一量
-    double ask_price_1 = 0.0;     // 卖一价
-    int64_t ask_volume_1 = 0;     // 卖一量
+    double bid_price_1 = 0.0;     // Best bid price
+    int64_t bid_volume_1 = 0;     // Best bid volume
+    double ask_price_1 = 0.0;     // Best ask price
+    int64_t ask_volume_1 = 0;     // Best ask volume
 };

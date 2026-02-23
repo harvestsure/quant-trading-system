@@ -13,7 +13,7 @@ bool ExchangeManager::initExchange(const ExchangeInstanceConfig& config) {
 
     std::map<std::string, std::string> params;
     
-    // 将JSON参数转换为字符串map
+    // Convert JSON params to string map
     for (const auto& [key, value] : config.params.items()) {
         if (value.is_string()) {
             params[key] = value.get<std::string>();

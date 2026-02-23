@@ -10,7 +10,7 @@
 
  
 
-// 事件类
+// Event class
 class Event {
 public:
     Event(EventType type) : type_(type), timestamp_(getCurrentTimestamp()) {}
@@ -18,13 +18,13 @@ public:
     EventType getType() const { return type_; }
     int64_t getTimestamp() const { return timestamp_; }
     
-    // 模板方法设置数据
+    // Template method to set data
     template<typename T>
     void setData(const T& data) {
         data_ = data;
     }
     
-    // 模板方法获取数据
+    // Template method to get data
     template<typename T>
     const T* getData() const {
         try {
@@ -34,7 +34,7 @@ public:
         }
     }
     
-    // 设置/获取附加信息
+    // Set/get extra information
     void setExtra(const std::string& key, const std::string& value) {
         extras_[key] = value;
     }

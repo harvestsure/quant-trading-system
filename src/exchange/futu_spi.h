@@ -13,22 +13,22 @@
 // Forward declaration
 class FutuExchange;
 
-// Futu SPI 回调处理类
+// Futu SPI callback handler class
 class FutuSpi : public Futu::FTSPI_Conn, public Futu::FTSPI_Qot, public Futu::FTSPI_Trd {
 public:
     explicit FutuSpi(FutuExchange* exchange);
     ~FutuSpi();
 
-    // ========== API 生命周期管理 ==========
+    // ========== API lifecycle management ==========
     bool InitApi(const std::string& host, int port);
     void ReleaseApi();
     bool IsConnected() const;
 
-    // ========== 等待异步响应 ==========
+    // ========== Wait for async replies ==========
     bool WaitForReply(Futu::u32_t serial_no, int timeout_ms = 5000);
     void NotifyReply(Futu::u32_t serial_no);
 
-    // ========== 交易类请求 Helper 方法 ==========
+    // ========== Trade request helper methods ==========
     Futu::u32_t SendUnlockTrade(const std::string& password);
     Futu::u32_t SendGetAccList();
     Futu::u32_t SendGetFunds(Futu::u64_t acc_id, int trd_env, int trd_market);
@@ -41,7 +41,7 @@ public:
                                 Futu::i64_t quantity, double price);
     Futu::u32_t SendCancelOrder(Futu::u64_t acc_id, int trd_env, Futu::u64_t order_id);
 
-    // ========== 行情类请求 Helper 方法 ==========
+    // ========== Market data request helper methods ==========
     Futu::u32_t SendSubscribeKLine(const Qot_Common::Security& security, int kline_type);
     Futu::u32_t SendGetKLine(const Qot_Common::Security& security, int kline_type, int count);
     Futu::u32_t SendGetHistoryKLine(const Qot_Common::Security& security, int kline_type, int count);
@@ -51,11 +51,11 @@ public:
     Futu::u32_t SendSubscribeTick(const Qot_Common::Security& security);
     Futu::u32_t SendUnsubscribeKLine(const Qot_Common::Security& security);
 
-    // ========== FTSPI_Conn 回调 ==========
+    // ========== FTSPI_Conn callbacks ==========
     void OnInitConnect(Futu::FTAPI_Conn* pConn, Futu::i64_t nErrCode, const char* strDesc) override;
     void OnDisConnect(Futu::FTAPI_Conn* pConn, Futu::i64_t nErrCode) override;
 
-    // ========== FTSPI_Qot 回调 ==========
+    // ========== FTSPI_Qot callbacks ==========
     void OnReply_GetGlobalState(Futu::u32_t nSerialNo, const GetGlobalState::Response &stRsp) override;
     void OnReply_Sub(Futu::u32_t nSerialNo, const Qot_Sub::Response &stRsp) override;
     void OnReply_RegQotPush(Futu::u32_t nSerialNo, const Qot_RegQotPush::Response &stRsp) override;
@@ -94,7 +94,7 @@ public:
     void OnReply_GetMarketState(Futu::u32_t nSerialNo, const Qot_GetMarketState::Response &stRsp) override;
     void OnReply_GetOptionExpirationDate(Futu::u32_t nSerialNo, const Qot_GetOptionExpirationDate::Response &stRsp) override;
 
-    // 行情推送
+    // Market data pushes
     void OnPush_Notify(const Notify::Response &stRsp) override;
     void OnPush_UpdateBasicQot(const Qot_UpdateBasicQot::Response &stRsp) override;
     void OnPush_UpdateOrderBook(const Qot_UpdateOrderBook::Response &stRsp) override;
@@ -104,7 +104,7 @@ public:
     void OnPush_UpdateBroker(const Qot_UpdateBroker::Response &stRsp) override;
     void OnPush_UpdatePriceReminder(const Qot_UpdatePriceReminder::Response &stRsp) override;
 
-    // ========== FTSPI_Trd 回调 ==========
+    // ========== FTSPI_Trd callbacks ==========
     void OnReply_GetAccList(Futu::u32_t nSerialNo, const Trd_GetAccList::Response &stRsp) override;
     void OnReply_UnlockTrade(Futu::u32_t nSerialNo, const Trd_UnlockTrade::Response &stRsp) override;
     void OnReply_SubAccPush(Futu::u32_t nSerialNo, const Trd_SubAccPush::Response &stRsp) override;
@@ -121,11 +121,11 @@ public:
     void OnReply_GetOrderFee(Futu::u32_t nSerialNo, const Trd_GetOrderFee::Response &stRsp) override;
     void OnReply_GetFlowSummary(Futu::u32_t nSerialNo, const Trd_FlowSummary::Response& stRsp) override;
 
-    // 交易推送
+    // Trade pushes
     void OnPush_UpdateOrder(const Trd_UpdateOrder::Response &stRsp) override;
     void OnPush_UpdateOrderFill(const Trd_UpdateOrderFill::Response &stRsp) override;
 
-    // 存储响应数据
+    // Stored response data
     std::map<Futu::u32_t, Trd_GetAccList::Response> acc_list_responses_;
     std::map<Futu::u32_t, Trd_GetFunds::Response> funds_responses_;
     std::map<Futu::u32_t, Trd_GetPositionList::Response> position_responses_;
@@ -137,7 +137,7 @@ public:
     std::map<Futu::u32_t, Qot_GetPlateSecurity::Response> plate_security_responses_;
     std::map<Futu::u32_t, Qot_GetStaticInfo::Response> static_info_responses_;
     
-    friend class FutuExchange;  // 允许 FutuExchange 访问 mutex_ 和响应数据
+    friend class FutuExchange;  // allow FutuExchange to access mutex_ and response data
 
 protected:
     void writeLog(LogLevel level, const std::string& message);
@@ -148,7 +148,7 @@ private:
     std::condition_variable cv_;
     std::map<Futu::u32_t, bool> reply_flags_;
     
-    // API 实例管理
+    // API instance management
     Futu::FTAPI_Qot* qot_api_ = nullptr;
     Futu::FTAPI_Trd* trd_api_ = nullptr;
 	bool is_qot_connected_ = false;

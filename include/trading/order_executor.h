@@ -10,7 +10,7 @@ class OrderExecutor {
 public:
     static OrderExecutor& getInstance();
     
-    // 下单
+    // Place an order
     std::string placeOrder(
         const std::string& symbol,
         OrderSide side,
@@ -19,17 +19,17 @@ public:
         double price = 0.0
     );
     
-    // 撤单
+    // Cancel an order
     bool cancelOrder(const std::string& order_id);
     
-    // 查询订单
+    // Query order
     OrderData* getOrder(const std::string& order_id);
     std::map<std::string, OrderData> getAllOrders();
     
-    // 订单状态更新回调（由Futu API调用）
+    // Order status update callback (invoked by Futu API)
     void onOrderUpdate(const OrderData& order);
     
-    // 禁止拷贝
+    // Non-copyable
     OrderExecutor(const OrderExecutor&) = delete;
     OrderExecutor& operator=(const OrderExecutor&) = delete;
     

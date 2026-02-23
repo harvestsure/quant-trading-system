@@ -12,7 +12,7 @@ ConfigManager& ConfigManager::getInstance() {
 }
 
 bool ConfigManager::loadFromFile(const std::string& config_file) {
-    // 根据文件扩展名判断格式
+    // Determine format based on file extension
     if (config_file.substr(config_file.find_last_of(".") + 1) == "json") {
         return loadFromJson(config_file);
     } else {
@@ -49,7 +49,7 @@ bool ConfigManager::loadFromText(const std::string& text_file) {
     
     std::string line;
     while (std::getline(file, line)) {
-        // 跳过注释和空行
+        // skip comments and empty lines
         if (line.empty() || line[0] == '#') continue;
         parseConfigLine(line);
     }
@@ -60,7 +60,7 @@ bool ConfigManager::loadFromText(const std::string& text_file) {
 }
 
 void ConfigManager::parseJsonConfig(const json& j) {
-    // 解析多交易所配置
+    // Parse multi-exchange configuration
     if (j.contains("exchange") && j["exchange"].is_object()) {
 		const auto& exch_array = j["exchange"];
         for (auto& [key, exch] : exch_array.items()) {
@@ -77,7 +77,7 @@ void ConfigManager::parseJsonConfig(const json& j) {
         }
     }
     
-    // 解析交易参数
+    // Parse trading parameters
     if (j.contains("trading")) {
         const auto& trading = j["trading"];
         config_.trading.max_position_size = trading.value("max_position_size", 100000.0);
@@ -85,7 +85,7 @@ void ConfigManager::parseJsonConfig(const json& j) {
         config_.trading.max_positions = trading.value("max_positions", 10);
     }
     
-    // 解析扫描参数
+    // Parse scanner parameters
     if (j.contains("scanner")) {
         const auto& scanner = j["scanner"];
         config_.scanner.interval_minutes = scanner.value("interval_minutes", 5);
@@ -96,7 +96,7 @@ void ConfigManager::parseJsonConfig(const json& j) {
         config_.scanner.top_n = scanner.value("top_n", 10);
     }
     
-    // 解析风险管理参数
+    // Parse risk management parameters
     if (j.contains("risk")) {
         const auto& risk = j["risk"];
         config_.risk.stop_loss_ratio = risk.value("stop_loss_ratio", 0.05);
@@ -106,7 +106,7 @@ void ConfigManager::parseJsonConfig(const json& j) {
         config_.risk.max_drawdown = risk.value("max_drawdown", 0.1);
     }
     
-    // 解析策略参数
+    // Parse strategy parameters
     if (j.contains("strategy")) {
         const auto& strategy = j["strategy"];
         if (strategy.contains("momentum")) {
@@ -120,7 +120,7 @@ void ConfigManager::parseJsonConfig(const json& j) {
         }
     }
     
-    // 解析日志配置
+    // Parse logging configuration
     if (j.contains("logging")) {
         const auto& logging = j["logging"];
         config_.logging.level = logging.value("level", "INFO");
@@ -129,11 +129,11 @@ void ConfigManager::parseJsonConfig(const json& j) {
         config_.logging.file_dir = logging.value("file_dir", "logs");
     }
     
-    // 解析通知配置
+    // Parse notification configuration
     if (j.contains("notification")) {
         const auto& notification = j["notification"];
         
-        // 解析Telegram配置
+        // Parse Telegram configuration
         if (notification.contains("telegram")) {
             const auto& telegram = notification["telegram"];
             config_.notification.telegram.enabled = telegram.value("enabled", false);
@@ -153,7 +153,7 @@ void ConfigManager::parseConfigLine(const std::string& line) {
     std::string key, value;
     
     if (std::getline(iss, key, '=') && std::getline(iss, value)) {
-        // 去除空格
+        // trim whitespace
         key.erase(0, key.find_first_not_of(" \t"));
         key.erase(key.find_last_not_of(" \t") + 1);
         value.erase(0, value.find_first_not_of(" \t"));

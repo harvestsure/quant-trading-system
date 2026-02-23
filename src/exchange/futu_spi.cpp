@@ -35,7 +35,7 @@ void FutuSpi::NotifyReply(Futu::u32_t serial_no) {
     cv_.notify_all();
 }
 
-// ========== API 生命周期管理 ==========
+// ========== API lifecycle management ==========
 
 bool FutuSpi::InitApi(const std::string& host, int port) {
     {
@@ -48,27 +48,27 @@ bool FutuSpi::InitApi(const std::string& host, int port) {
         
         host_ = host;
         port_ = port;
-    }  // 释放锁，因为 WaitForReply 会再次获取
+    }  // Release lock because WaitForReply will reacquire it
     
     try {
-        // 初始化 FTAPI
+        // Initialize FTAPI
         Futu::FTAPI::Init();
         
-        // 创建行情API
+        // Create market data (Qot) API
         qot_api_ = Futu::FTAPI::CreateQotApi();
         if (qot_api_ == nullptr) {
             writeLog(LogLevel::Error, "Failed to create Qot API");
             return false;
         }
         
-        // 设置客户端信息
+        // Set client info
         qot_api_->SetClientInfo("QUANT_TRADING_SYSTEM", 1);
-        
-        // 注册回调
+
+        // Register callbacks
         qot_api_->RegisterConnSpi(this);
         qot_api_->RegisterQotSpi(this);
-        
-        // 初始化连接
+
+        // Initialize connection
         bool ret = qot_api_->InitConnect(host.c_str(), port, false);
         /*if (!ret) {
             writeLog(LogLevel::Error, "Failed to initialize Qot API connection");
@@ -77,7 +77,7 @@ bool FutuSpi::InitApi(const std::string& host, int port) {
             return false;
         }*/
 
-        WaitForReply(0, 5000); // 等待连接初始化完成，serial_no 0 用于表示连接初始化
+        WaitForReply(0, 5000); // Wait for connection initialization completion, serial_no 0 indicates init
 
         {
             std::lock_guard<std::mutex> lock(mutex_);
@@ -89,7 +89,7 @@ bool FutuSpi::InitApi(const std::string& host, int port) {
             }
         }
         
-        // 创建交易API
+        // Create trade (Trd) API
         trd_api_ = Futu::FTAPI::CreateTrdApi();
         if (trd_api_ == nullptr) {
             writeLog(LogLevel::Error, "Failed to create Trd API");
@@ -99,14 +99,14 @@ bool FutuSpi::InitApi(const std::string& host, int port) {
             return false;
         }
         
-        // 设置客户端信息
+        // Set client info
         trd_api_->SetClientInfo("QUANT_TRADING_SYSTEM", 1);
-        
-        // 注册回调
+
+        // Register callbacks
         trd_api_->RegisterConnSpi(this);
         trd_api_->RegisterTrdSpi(this);
-        
-        // 初始化连接
+
+        // Initialize connection
         ret = trd_api_->InitConnect(host.c_str(), port, false);
         /* if (!ret) {
             writeLog(LogLevel::Error, "Failed to initialize Trd API connection");
@@ -118,7 +118,7 @@ bool FutuSpi::InitApi(const std::string& host, int port) {
             return false;
         }*/
 
-        WaitForReply(0, 5000); // 等待连接初始化完成，serial_no 0 用于表示连接初始化
+        WaitForReply(0, 5000); // Wait for connection initialization completion, serial_no 0 indicates init
 
         {
             std::lock_guard<std::mutex> lock(mutex_);
@@ -178,7 +178,7 @@ bool FutuSpi::IsConnected() const {
     return api_initialized_ && qot_api_ != nullptr && trd_api_ != nullptr;
 }
 
-// ========== 交易类请求 Helper 方法 ==========
+// ========== Trade request helper methods ==========
 
 Futu::u32_t FutuSpi::SendUnlockTrade(const std::string& password) {
     if (trd_api_ == nullptr) {
@@ -217,7 +217,7 @@ Futu::u32_t FutuSpi::SendGetAccList() {
     try {
         Trd_GetAccList::Request req;
         auto* c2s = req.mutable_c2s();
-        c2s->set_userid(0);  // 0 表示当前连接对应的用户
+        c2s->set_userid(0);  // 0 indicates the current connected user
         
         Futu::u32_t serial_no = trd_api_->GetAccList(req);
         if (serial_no == 0) {
@@ -337,7 +337,7 @@ Futu::u32_t FutuSpi::SendPlaceOrder(Futu::u64_t acc_id, int trd_env, int trd_mar
         header->set_accid(acc_id);
         header->set_trdmarket(trd_market);
         
-        // 设置订单参数（直接在 C2S 中设置）
+        // Set order parameters (set directly in C2S)
         c2s->set_trdside(order_side);
         c2s->set_ordertype(order_type);
         c2s->set_code(security.code());
@@ -374,7 +374,7 @@ Futu::u32_t FutuSpi::SendModifyOrder(Futu::u64_t acc_id, int trd_env, Futu::u64_
         auto* header = c2s->mutable_header();
         header->set_trdenv(trd_env);
         header->set_accid(acc_id);
-        header->set_trdmarket(Trd_Common::TrdMarket_HK);  // 默认使用HK市场
+        header->set_trdmarket(Trd_Common::TrdMarket_HK);  // Default to HK market
         
         c2s->set_orderid(order_id);
         c2s->set_qty(quantity);
@@ -402,7 +402,7 @@ Futu::u32_t FutuSpi::SendCancelOrder(Futu::u64_t acc_id, int trd_env, Futu::u64_
     }
     
     try {
-        // 使用 ModifyOrder 来取消订单（通过设置 Order 的 Status 为 Cancelled）
+        // Use ModifyOrder to cancel order (by setting Order Status to Cancelled)
         Trd_ModifyOrder::Request req;
         auto* c2s = req.mutable_c2s();
         auto* header = c2s->mutable_header();
@@ -427,7 +427,7 @@ Futu::u32_t FutuSpi::SendCancelOrder(Futu::u64_t acc_id, int trd_env, Futu::u64_
     }
 }
 
-// ========== 行情类请求 Helper 方法 ==========
+// ========== Market data request helper methods ==========
 
 Futu::u32_t FutuSpi::SendSubscribeKLine(const Qot_Common::Security& security, int kline_type) {
     if (qot_api_ == nullptr) {
@@ -439,15 +439,15 @@ Futu::u32_t FutuSpi::SendSubscribeKLine(const Qot_Common::Security& security, in
         Qot_Sub::Request req;
         auto* c2s = req.mutable_c2s();
         
-        // 添加要订阅的股票
+        // Add the security to subscribe
         auto* security_item = c2s->add_securitylist();
         *security_item = security;
         
-        // 添加订阅类型 - K线
-        // 直接使用整数值 1,2,3... 或者查看Qot_Common的具体值
-        c2s->add_subtypelist(1 + kline_type);  // SubType_K_1Min = 1, 1Min=0, 3Min=1 等等
+        // Add subscription type - KLine
+        // Use integer values like 1,2,3... or refer to Qot_Common for specific values
+        c2s->add_subtypelist(1 + kline_type);  // SubType_K_1Min = 1, 1Min=0, 3Min=1 etc.
         
-        // 设置为订阅
+        // Set as subscription
         c2s->set_issuborunsub(true);
         c2s->set_isregorunregpush(true);
         
@@ -506,25 +506,25 @@ Futu::u32_t FutuSpi::SendGetHistoryKLine(const Qot_Common::Security& security, i
         *c2s->mutable_security() = security;
         c2s->set_kltype(kline_type);
         c2s->set_maxackklnum(count);
-        c2s->set_rehabtype(1);  // 前复权
+        c2s->set_rehabtype(1);  // Forward-adjusted
         
-        // 根据K线类型计算合理的时间范围
+        // Calculate appropriate time range based on K-line type
         auto now = std::chrono::system_clock::now();
         auto end_time = now;
         
-        // 往前推足够的时间窗口
-        int days_back = 30;  // 默认30天
-        if (kline_type <= 8) {  // 分钟级别K线 (1min~60min)
+        // Shift backward a sufficient time window
+        int days_back = 30;  // Default 30 days
+        if (kline_type <= 8) {  // Minute-level K-lines (1min~60min)
             days_back = 5;
-        } else if (kline_type == 9 || kline_type == 10) {  // 日K/周K
-            days_back = count * 2 + 10;  // 留足余量应对非交易日
+        } else if (kline_type == 9 || kline_type == 10) {  // Daily/Weekly K
+            days_back = count * 2 + 10;  // Add buffer for non-trading days
         } else {
-            days_back = count * 40;  // 月K等
+            days_back = count * 40;  // Monthly K, etc.
         }
         
         auto begin_time = now - std::chrono::hours(24 * days_back);
         
-        // 格式化时间字符串 yyyy-MM-dd HH:mm:ss
+        // Format time string yyyy-MM-dd HH:mm:ss
         auto format_time = [](std::chrono::system_clock::time_point tp) -> std::string {
             auto time_t_val = std::chrono::system_clock::to_time_t(tp);
             struct tm tm_val;
@@ -622,10 +622,10 @@ Futu::u32_t FutuSpi::SendGetStaticInfo(int market_type, int security_type) {
         Qot_GetStaticInfo::Request req;
         auto* c2s = req.mutable_c2s();
         
-        // 设置市场类型
+        // Set market type
         c2s->set_market(market_type);
-        
-        // 设置证券类型（股票）
+
+        // Set security type (equity)
         c2s->set_sectype(security_type);
         
         Futu::u32_t serial_no = qot_api_->GetStaticInfo(req);
@@ -653,15 +653,15 @@ Futu::u32_t FutuSpi::SendSubscribeTick(const Qot_Common::Security& security) {
         Qot_Sub::Request req;
         auto* c2s = req.mutable_c2s();
         
-        // 添加要订阅的股票
+        // Add the security to subscribe
         auto* security_item = c2s->add_securitylist();
         *security_item = security;
-        
-        // 添加订阅类型 - 基础报价和Ticker
+
+        // Add subscription types - Basic quote and Ticker
         c2s->add_subtypelist(Qot_Common::SubType_Basic);
         c2s->add_subtypelist(Qot_Common::SubType_Ticker);
-        
-        // 设置为订阅
+
+        // Set as subscription
         c2s->set_issuborunsub(true);
         c2s->set_isregorunregpush(true);
         
@@ -690,11 +690,11 @@ Futu::u32_t FutuSpi::SendUnsubscribeKLine(const Qot_Common::Security& security) 
         Qot_Sub::Request req;
         auto* c2s = req.mutable_c2s();
         
-        // 添加要取消订阅的股票
+        // Add the security to unsubscribe
         auto* security_item = c2s->add_securitylist();
         *security_item = security;
         
-        // 设置为取消订阅
+        // Set to unsubscribe
         c2s->set_issuborunsub(false);
         
         Futu::u32_t serial_no = qot_api_->Sub(req);
@@ -712,7 +712,7 @@ Futu::u32_t FutuSpi::SendUnsubscribeKLine(const Qot_Common::Security& security) 
     }
 }
 
-// ========== FTSPI_Conn 回调 ==========
+// ========== FTSPI_Conn callbacks ==========
 
 void FutuSpi::OnInitConnect(Futu::FTAPI_Conn* pConn, Futu::i64_t nErrCode, const char* strDesc) {
     if (nErrCode == 0) {
@@ -727,14 +727,14 @@ void FutuSpi::OnInitConnect(Futu::FTAPI_Conn* pConn, Futu::i64_t nErrCode, const
 		is_trd_connected_ = (nErrCode == 0);
 	}
 
-	NotifyReply(0); // 使用 serial_no 0 来表示连接初始化完成    
+    NotifyReply(0); // Use serial_no 0 to indicate connection initialization complete
 }
 
 void FutuSpi::OnDisConnect(Futu::FTAPI_Conn* pConn, Futu::i64_t nErrCode) {
     writeLog(LogLevel::Warn, std::string("FTAPI disconnected: code=") + std::to_string(nErrCode));
 }
 
-// ========== FTSPI_Qot 回调 ==========
+// ========== FTSPI_Qot callbacks ==========
 
 void FutuSpi::OnReply_GetGlobalState(Futu::u32_t nSerialNo, const GetGlobalState::Response &stRsp) {
     writeLog(LogLevel::Info, "OnReply_GetGlobalState");
@@ -945,7 +945,7 @@ void FutuSpi::OnReply_GetOptionExpirationDate(Futu::u32_t nSerialNo, const Qot_G
     NotifyReply(nSerialNo);
 }
 
-// 行情推送
+// Market data pushes
 void FutuSpi::OnPush_Notify(const Notify::Response &stRsp) {
     writeLog(LogLevel::Info, "OnPush_Notify");
 }
@@ -970,7 +970,7 @@ void FutuSpi::OnPush_UpdateBasicQot(const Qot_UpdateBasicQot::Response &stRsp) {
             return;
         }
         
-        // 检查 exchange_ 和 event_engine_ 是否有效
+        // Check exchange_ and event_engine_ validity
         if (exchange_ == nullptr) {
             writeLog(LogLevel::Error, "OnPush_UpdateBasicQot: exchange is null");
             return;
@@ -982,7 +982,7 @@ void FutuSpi::OnPush_UpdateBasicQot(const Qot_UpdateBasicQot::Response &stRsp) {
             return;
         }
         
-        // 处理每个基础行情数据
+        // Process each basic market data
         for (int i = 0; i < s2c.basicqotlist_size(); ++i) {
             const auto& basic = s2c.basicqotlist(i);
             if (!basic.has_security()) {
@@ -992,26 +992,26 @@ void FutuSpi::OnPush_UpdateBasicQot(const Qot_UpdateBasicQot::Response &stRsp) {
             const auto& security = basic.security();
             std::string symbol = security.code();
             
-            // 构建 TickData 对象
+            // Construct TickData object
             TickData tick_data;
             tick_data.symbol = symbol;
             tick_data.exchange = exchange_->getName();
             tick_data.timestamp = std::chrono::system_clock::now().time_since_epoch().count() / 1000000;
             tick_data.datetime = basic.updatetime();
             
-            // 从 basic 中提取价格数据
+            // Extract price data from basic
             tick_data.last_price = basic.curprice();
             tick_data.open_price = basic.openprice();
             tick_data.high_price = basic.highprice();
             tick_data.low_price = basic.lowprice();
             tick_data.pre_close = basic.lastcloseprice();
             
-            // 成交量和金额
+            // Volume and turnover
             tick_data.volume = basic.volume();
             tick_data.turnover = basic.turnover();
             tick_data.turnover_rate = basic.turnoverrate();
             
-            // 发布 Tick 事件
+            // Publish Tick event
             auto event = std::make_shared<Event>(EventType::EVENT_TICK);
             event->setData(tick_data);
             event_engine->putEvent(event);
@@ -1048,7 +1048,7 @@ void FutuSpi::OnPush_UpdateTicker(const Qot_UpdateTicker::Response &stRsp) {
             return;
         }
         
-        // 检查 exchange_ 和 event_engine_ 是否有效
+        // Check exchange_ and event_engine_ validity
         if (exchange_ == nullptr) {
             writeLog(LogLevel::Error, "OnPush_UpdateTicker: exchange is null");
             return;
@@ -1060,7 +1060,7 @@ void FutuSpi::OnPush_UpdateTicker(const Qot_UpdateTicker::Response &stRsp) {
             return;
         }
         
-        // 获取 security 信息（在 S2C 中，而不是在每个 ticker 中）
+        // Get security info (in S2C, not in each ticker)
         if (!s2c.has_security()) {
             writeLog(LogLevel::Warn, "OnPush_UpdateTicker: no security in s2c");
             return;
@@ -1069,23 +1069,23 @@ void FutuSpi::OnPush_UpdateTicker(const Qot_UpdateTicker::Response &stRsp) {
         const auto& security = s2c.security();
         std::string symbol = security.code();
         
-        // 处理每个 ticker 数据
+        // Process each ticker data
         for (int i = 0; i < s2c.tickerlist_size(); ++i) {
             const auto& ticker = s2c.tickerlist(i);
             
-            // 构建 TickData 对象
+            // Construct TickData object
             TickData tick_data;
             tick_data.symbol = symbol;
             tick_data.exchange = exchange_->getName();
             tick_data.timestamp = std::chrono::system_clock::now().time_since_epoch().count() / 1000000;
             tick_data.datetime = ticker.time();
             
-            // 从 ticker 中提取成交数据
-            tick_data.last_price = ticker.price();           // 成交价格
-            tick_data.volume = ticker.volume();              // 成交量
-            tick_data.turnover = ticker.turnover();          // 成交额
+            // Extract trade data from ticker
+            tick_data.last_price = ticker.price();           // trade price
+            tick_data.volume = ticker.volume();              // volume
+            tick_data.turnover = ticker.turnover();          // turnover
             
-            // 发布 Tick 事件
+            // Publish Tick event
             auto event = std::make_shared<Event>(EventType::EVENT_TICK);
             event->setData(tick_data);
             event_engine->putEvent(event);
@@ -1118,7 +1118,7 @@ void FutuSpi::OnPush_UpdateKL(const Qot_UpdateKL::Response &stRsp) {
             return;
         }
         
-        // 检查 exchange_ 和 event_engine_ 是否有效
+        // Check exchange_ and event_engine_ validity
         if (exchange_ == nullptr) {
             writeLog(LogLevel::Error, "OnPush_UpdateKL: exchange is null");
             return;
@@ -1130,11 +1130,11 @@ void FutuSpi::OnPush_UpdateKL(const Qot_UpdateKL::Response &stRsp) {
             return;
         }
         
-        // 获取 K 线类型（从首个 K 线）
-        std::string kline_interval = "1m";  // 默认值
+        // Get K-line type (from first K-line)
+        std::string kline_interval = "1m";  // default
         if (s2c.kllist_size() > 0) {
             int32_t kl_type = s2c.kltype();
-            // 转换 K 线类型
+            // Convert K-line type
             if (kl_type == Qot_Common::KLType_1Min) {
                 kline_interval = "1m";
             } else if (kl_type == Qot_Common::KLType_3Min) {
@@ -1156,28 +1156,28 @@ void FutuSpi::OnPush_UpdateKL(const Qot_UpdateKL::Response &stRsp) {
             }
         }
         
-        // 处理每个 K 线数据
+        // Process each K-line data
         for (int i = 0; i < s2c.kllist_size(); ++i) {
             const auto& kl = s2c.kllist(i);
             
-            // 获取 symbol（从 security 或其他字段）
+            // Get symbol (from security or other fields)
             std::string symbol;
             if (s2c.has_security()) {
                 const auto& security = s2c.security();
                 symbol = security.code();
             } else {
-                // 如果 s2c 中没有 security，继续
+                // If s2c has no security, continue
                 continue;
             }
             
-            // 构建 KlineData 对象
+            // Construct KlineData object
             KlineData kline_data;
             kline_data.symbol = symbol;
             kline_data.exchange = exchange_->getName();
             kline_data.interval = kline_interval;
             kline_data.datetime = kl.time();
             
-            // 从 K 线中提取价格数据
+            // Extract price data from K-line
             kline_data.open_price = kl.openprice();
             kline_data.high_price = kl.highprice();
             kline_data.low_price = kl.lowprice();
@@ -1185,11 +1185,11 @@ void FutuSpi::OnPush_UpdateKL(const Qot_UpdateKL::Response &stRsp) {
             kline_data.volume = kl.volume();
             kline_data.turnover = kl.turnover();
             
-            // 解析时间戳（假设 datetime 是字符串格式，如 "2024-02-05 10:00:00"）
-            // 这里暂时设置为系统当前时间，实际应该从 datetime 字符串解析
+            // Parse timestamp (assuming datetime is a string like "2024-02-05 10:00:00")
+            // Temporarily set to system current time; should parse from datetime string in production
             kline_data.timestamp = std::chrono::system_clock::now().time_since_epoch().count() / 1000000;
             
-            // 根据 interval 设置 interval_enum
+            // Set interval_enum based on interval
             if (kline_interval == "1m") {
                 kline_data.interval_enum = KlineInterval::K_1M;
             } else if (kline_interval == "3m") {
@@ -1210,7 +1210,7 @@ void FutuSpi::OnPush_UpdateKL(const Qot_UpdateKL::Response &stRsp) {
                 kline_data.interval_enum = KlineInterval::K_1MO;
             }
             
-            // 发布 KLine 事件
+            // Publish KLine event
             auto event = std::make_shared<Event>(EventType::EVENT_KLINE);
             event->setData(kline_data);
             event_engine->putEvent(event);
@@ -1235,7 +1235,7 @@ void FutuSpi::OnPush_UpdatePriceReminder(const Qot_UpdatePriceReminder::Response
     writeLog(LogLevel::Info, "OnPush_UpdatePriceReminder");
 }
 
-// ========== FTSPI_Trd 回调 ==========
+// ========== FTSPI_Trd callbacks ==========
 
 void FutuSpi::OnReply_GetAccList(Futu::u32_t nSerialNo, const Trd_GetAccList::Response &stRsp) {
     {
@@ -1346,15 +1346,15 @@ void FutuSpi::OnReply_GetFlowSummary(Futu::u32_t nSerialNo, const Trd_FlowSummar
     NotifyReply(nSerialNo);
 }
 
-// 交易推送
+// Trade pushes
 void FutuSpi::OnPush_UpdateOrder(const Trd_UpdateOrder::Response &stRsp) {
     writeLog(LogLevel::Info, "OnPush_UpdateOrder");
-    // TODO: 转换并发布订单更新事件
+    // TODO: Convert and publish order update events
 }
 
 void FutuSpi::OnPush_UpdateOrderFill(const Trd_UpdateOrderFill::Response &stRsp) {
     writeLog(LogLevel::Info, "OnPush_UpdateOrderFill");
-    // TODO: 转换并发布成交事件
+    // TODO: Convert and publish trade events
 }
 
 void FutuSpi::writeLog(LogLevel level, const std::string& message) {

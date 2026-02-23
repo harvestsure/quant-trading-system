@@ -20,18 +20,18 @@ void StrategyManager::processScanResults(const std::vector<ScanResult>& results)
     ss << "Processing scan results: " << results.size() << " stocks";
     LOG_INFO(ss.str());
     
-    // 1. 构建当前扫描的股票代码集合
+    // 1. Build the set of stock symbols from the current scan
     std::set<std::string> current_scan_stocks;
     for (const auto& result : results) {
         current_scan_stocks.insert(result.symbol);
     }
     
-    // 2. 为新股票创建策略实例（已存在的不重复创建）
+    // 2. Create strategy instances for new symbols (skip if already exists)
     for (const auto& result : results) {
         if (!hasStrategyInstance(result.symbol)) {
             createStrategyInstance(result.symbol, result);
         } else {
-            // 更新已存在策略的扫描结果
+            // Update scan result for existing strategy
             auto& instance = strategy_instances_[result.symbol];
             if (instance.strategy && instance.strategy->isRunning()) {
                 instance.strategy->onScanResult(result);
@@ -39,23 +39,23 @@ void StrategyManager::processScanResults(const std::vector<ScanResult>& results)
         }
     }
     
-    // 3. 检查需要删除的策略（不在最新扫描结果中的股票）
+    // 3. Identify strategies to remove (symbols not present in the latest scan)
     std::vector<std::string> to_remove;
     for (const auto& pair : strategy_instances_) {
         const std::string& symbol = pair.first;
         
-        // 如果股票不在当前扫描结果中，考虑删除
+        // If the symbol is not in the current scan, consider removal
         if (current_scan_stocks.find(symbol) == current_scan_stocks.end()) {
             to_remove.push_back(symbol);
         }
     }
     
-    // 4. 删除不再符合条件的策略（需要判断是否有持仓）
+    // 4. Remove strategies that no longer meet criteria (check for positions)
     for (const auto& symbol : to_remove) {
         removeStrategyInstance(symbol, false);
     }
     
-    // 5. 更新上次扫描的股票集合
+    // 5. Update the last scanned symbol set
     last_scan_stocks_ = current_scan_stocks;
     
     ss.str("");
@@ -65,7 +65,7 @@ void StrategyManager::processScanResults(const std::vector<ScanResult>& results)
 }
 
 void StrategyManager::createStrategyInstance(const std::string& symbol, const ScanResult& scan_result) {
-    // 不需要锁，调用者已加锁
+    // No lock needed; caller already holds the lock
     
     if (hasStrategyInstance(symbol)) {
         std::stringstream ss;
@@ -74,7 +74,7 @@ void StrategyManager::createStrategyInstance(const std::string& symbol, const Sc
         return;
     }
     
-    // 创建新的策略实例
+    // Create a new strategy instance
     auto strategy = createStrategy(symbol, scan_result);
     if (!strategy) {
         std::stringstream ss;
@@ -83,16 +83,16 @@ void StrategyManager::createStrategyInstance(const std::string& symbol, const Sc
         return;
     }
     
-    // 订阅行情数据（使用正确的交易所实例）
+    // Subscribe to market data (using the provided exchange instance)
     if (scan_result.exchange && scan_result.exchange->isConnected()) {
         const std::string& exchange_name = scan_result.exchange_name;
         
-        // 订阅 K 线数据（1分钟）
+        // Subscribe to KLine data (1 minute)
         if (!scan_result.exchange->subscribeKLine(symbol, "1m")) {
             LOG_WARN("Failed to subscribe KLine for " + symbol + " on " + exchange_name);
         }
         
-        // 订阅 Tick 数据
+        // Subscribe to Tick data
         if (!scan_result.exchange->subscribeTick(symbol)) {
             LOG_WARN("Failed to subscribe Tick for " + symbol + " on " + exchange_name);
         }
@@ -102,13 +102,13 @@ void StrategyManager::createStrategyInstance(const std::string& symbol, const Sc
         LOG_WARN("Exchange not ready for " + symbol + ", cannot subscribe market data");
     }
     
-    // 启动策略
+    // Start the strategy
     strategy->start();
     
-    // 传递扫描结果
+    // Pass the scan result to the strategy
     strategy->onScanResult(scan_result);
     
-    // 保存实例
+    // Save the strategy instance
     StrategyInstance instance;
     instance.symbol = symbol;
     instance.strategy = strategy;
@@ -129,26 +129,26 @@ void StrategyManager::createStrategyInstance(const std::string& symbol, const Sc
 }
 
 void StrategyManager::removeStrategyInstance(const std::string& symbol, bool force) {
-    // 不需要锁，调用者已加锁
+    // No lock needed; caller already holds the lock
     
     auto it = strategy_instances_.find(symbol);
     if (it == strategy_instances_.end()) {
         return;
     }
     
-    // 如果不是强制删除，需要检查是否可以删除
+    // If not force removal, check whether the strategy can be removed
     if (!force && !canRemoveStrategy(symbol)) {
         std::stringstream ss;
         ss << "Cannot remove strategy for " << symbol 
            << " - has active position, will keep monitoring";
         LOG_WARN(ss.str());
         
-        // 标记为不活跃，但保留策略实例继续监控持仓
+        // Mark as inactive but keep the instance to continue monitoring positions
         it->second.is_active = false;
         return;
     }
     
-    // 使用正确的交易所实例取消订阅
+    // Unsubscribe using the associated exchange instance
     const auto& exchange = it->second.exchange;
     if (exchange && exchange->isConnected()) {
         exchange->unsubscribeKLine(symbol);
@@ -156,12 +156,12 @@ void StrategyManager::removeStrategyInstance(const std::string& symbol, bool for
         LOG_INFO("Unsubscribed market data for " + symbol + " from " + it->second.exchange_name);
     }
     
-    // 停止策略
+    // Stop the strategy
     if (it->second.strategy) {
         it->second.strategy->stop();
     }
     
-    // 删除实例
+    // Erase the instance
     strategy_instances_.erase(it);
     
     std::stringstream ss;
@@ -170,7 +170,7 @@ void StrategyManager::removeStrategyInstance(const std::string& symbol, bool for
 }
 
 bool StrategyManager::hasStrategyInstance(const std::string& symbol) const {
-    // 不需要锁，调用者已加锁
+    // No lock needed; caller already holds the lock
     return strategy_instances_.find(symbol) != strategy_instances_.end();
 }
 
@@ -203,7 +203,7 @@ void StrategyManager::stopAllStrategies() {
 }
 
 size_t StrategyManager::getActiveStrategyCount() const {
-    // 不需要锁，调用者已加锁
+    // No lock needed; caller already holds the lock
     
     return std::count_if(strategy_instances_.begin(), strategy_instances_.end(),
         [](const std::pair<std::string, StrategyInstance>& pair) {
@@ -243,35 +243,35 @@ void StrategyManager::printStrategyStatus() const {
 }
 
 bool StrategyManager::canRemoveStrategy(const std::string& symbol) const {
-    // 不需要锁，调用者已加锁
-    
-    // 检查是否有持仓
+    // No lock needed; caller already holds the lock
+
+    // Check for existing positions
     auto& pos_mgr = PositionManager::getInstance();
     if (pos_mgr.hasPosition(symbol)) {
-        return false;  // 有持仓，不能删除
+        return false;  // has positions; cannot remove
     }
     
-    return true;  // 没有持仓，可以删除
+    return true;  // no positions; safe to remove
 }
 
 std::shared_ptr<StrategyBase> StrategyManager::createStrategy(
     const std::string& symbol, 
     const ScanResult& scan_result) {
     
-    // 这里可以根据配置或条件选择不同的策略类型
-    // 目前默认创建动量策略
+    // You can select different strategy types based on configuration or conditions
+    // Currently defaulting to creating a MomentumStrategy
     
     auto strategy = std::make_shared<MomentumStrategy>();
     
-    // 设置策略名称（包含股票代码）
+    // Set strategy name (including symbol)
     std::stringstream ss;
     ss << "Momentum_" << symbol << "_" << scan_result.stock_name;
-    // 注意：需要在StrategyBase中添加setName方法，或在构造时传入
+    // Note: Consider adding setName method to StrategyBase or pass name in constructor
     
     return strategy;
 }
 
-// ========== 事件处理 ==========
+    // ========== Event handling ==========
 
 void StrategyManager::initializeEventHandlers(IEventEngine* event_engine) {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -283,8 +283,8 @@ void StrategyManager::initializeEventHandlers(IEventEngine* event_engine) {
     
     event_engine_ = event_engine;
     
-    // 注册事件处理器
-    // 使用 lambda 捕获 this，当事件到达时调用对应的处理方法
+    // Register event handlers
+    // Capture `this` in lambdas to dispatch to member handlers when events arrive
     kline_handler_id_ = event_engine_->registerHandler(
         EventType::EVENT_KLINE,
         [this](const EventPtr& event) { this->onKLineEvent(event); }
@@ -308,7 +308,7 @@ void StrategyManager::onKLineEvent(const EventPtr& event) {
         return;
     }
     
-    // 从事件中提取 KlineData
+    // Extract KlineData from the event
     const KlineData* kline = event->getData<KlineData>();
     if (kline == nullptr) {
         LOG_ERROR("Failed to extract KlineData from event");
@@ -317,13 +317,13 @@ void StrategyManager::onKLineEvent(const EventPtr& event) {
     
     std::string symbol = kline->symbol;
     
-    // 查找对应的策略实例并调用处理方法
+    // Find the corresponding strategy instance and invoke its handler
     {
         std::lock_guard<std::mutex> lock(mutex_);
         
         auto it = strategy_instances_.find(symbol);
         if (it == strategy_instances_.end()) {
-            // 没有对应的策略实例，直接返回
+            // No corresponding strategy instance; return early
             return;
         }
         
@@ -331,7 +331,7 @@ void StrategyManager::onKLineEvent(const EventPtr& event) {
             return;
         }
         
-        // 调用策略的 onKLine 方法处理数据
+        // Call the strategy's onKLine method to handle the data
         it->second.strategy->onKLine(symbol, *kline);
     }
 }
@@ -341,7 +341,7 @@ void StrategyManager::onTickEvent(const EventPtr& event) {
         return;
     }
     
-    // 从事件中提取 TickData
+    // Extract TickData from the event
     const TickData* tick = event->getData<TickData>();
     if (tick == nullptr) {
         LOG_ERROR("Failed to extract TickData from event");
@@ -350,13 +350,13 @@ void StrategyManager::onTickEvent(const EventPtr& event) {
     
     std::string symbol = tick->symbol;
     
-    // 查找对应的策略实例并调用处理方法
+    // Find the corresponding strategy instance and invoke its handler
     {
         std::lock_guard<std::mutex> lock(mutex_);
         
         auto it = strategy_instances_.find(symbol);
         if (it == strategy_instances_.end()) {
-            // 没有对应的策略实例，直接返回
+            // No corresponding strategy instance; return early
             return;
         }
         
@@ -364,7 +364,7 @@ void StrategyManager::onTickEvent(const EventPtr& event) {
             return;
         }
         
-        // 调用策略的 onTick 方法处理数据
+        // Call the strategy's onTick method to handle the data
         it->second.strategy->onTick(symbol, *tick);
     }
 }
@@ -374,7 +374,7 @@ void StrategyManager::onTradeEvent(const EventPtr& event) {
         return;
     }
     
-    // 从事件中提取 TradeData
+    // Extract TradeData from the event
     const TradeData* trade = event->getData<TradeData>();
     if (trade == nullptr) {
         LOG_ERROR("Failed to extract TradeData from event");
@@ -383,13 +383,13 @@ void StrategyManager::onTradeEvent(const EventPtr& event) {
     
     std::string symbol = trade->symbol;
     
-    // 查找对应的策略实例
+    // Find the corresponding strategy instance
     {
         std::lock_guard<std::mutex> lock(mutex_);
         
         auto it = strategy_instances_.find(symbol);
         if (it == strategy_instances_.end()) {
-            // 没有对应的策略实例，直接返回
+            // No corresponding strategy instance; return early
             return;
         }
         
@@ -397,8 +397,8 @@ void StrategyManager::onTradeEvent(const EventPtr& event) {
             return;
         }
         
-        // 可以在这里添加对成交数据的处理
-        // 可选：记录成交事件、更新持仓、计算收益等
+        // You can add trade processing here
+        // Optional: record trade events, update positions, compute P&L, etc.
         std::stringstream ss;
         ss << "Trade executed for " << symbol 
            << " - Direction: " << (trade->direction == Direction::LONG ? "LONG" : "SHORT")
@@ -406,7 +406,7 @@ void StrategyManager::onTradeEvent(const EventPtr& event) {
            << ", Price: " << trade->price;
         LOG_INFO(ss.str());
         
-        // TODO: 可以添加 onTrade() 方法到策略基类中处理成交事件
+        // TODO: Consider adding an onTrade() method to StrategyBase to handle trade events
     }
 }
 

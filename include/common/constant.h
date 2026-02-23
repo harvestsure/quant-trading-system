@@ -1,24 +1,24 @@
 #pragma once
 
-// 订单方向
+// Order direction
 enum class Direction {
     LONG = 0,
     SHORT = 1
 };
 
-// 订单买卖方向（兼容不同命名习惯）
+// Order side (keeps compatibility with different naming conventions)
 enum class OrderSide {
     BUY = 0,
     SELL = 1
 };
 
-// 订单类型
+// Order type
 enum class OrderType {
     LIMIT = 0,
     MARKET = 1
 };
 
-// K线周期枚举
+// K-line (candlestick) interval enum
 enum class KlineInterval {
     K_1M, // minute
     K_3M,
@@ -33,7 +33,7 @@ enum class KlineInterval {
     K_1Y  // year
 };
 
-// 订单状态
+// Order status
 enum class OrderStatus {
     SUBMITTING = 0,
     SUBMITTED = 1,

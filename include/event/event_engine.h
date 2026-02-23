@@ -13,27 +13,27 @@
 
  
 
-// 事件引擎
+// Event engine
 class EventEngine : public IEventEngine {
 public:
     static EventEngine& getInstance();
     
-    // 启动/停止事件引擎
+    // Start/stop the event engine
     void start() override;
     void stop() override;
     bool isRunning() const override { return running_; }
     
-    // 注册事件处理器
-    // 返回处理器ID，用于后续注销
+    // Register event handler
+    // Returns handler ID for later unregistration
     int registerHandler(EventType type, EventHandler handler) override;
     
-    // 注销事件处理器
+    // Unregister event handler
     void unregisterHandler(EventType type, int handler_id) override;
     
-    // 发布事件
+    // Publish event
     void putEvent(const EventPtr& event) override;
     
-    // 便捷方法：创建并发布事件
+    // Convenience: create and publish an event
     template<typename T>
     void publishEvent(EventType type, const T& data) {
         auto event = std::make_shared<Event>(type);
@@ -41,12 +41,12 @@ public:
         putEvent(event);
     }
     
-    // 获取统计信息
+    // Get statistics
     size_t getEventQueueSize() const override;
     size_t getHandlerCount(EventType type) const override;
     uint64_t getProcessedEventCount() const override { return processed_count_; }
     
-    // 禁止拷贝
+    // Non-copyable
     EventEngine(const EventEngine&) = delete;
     EventEngine& operator=(const EventEngine&) = delete;
     
@@ -54,29 +54,29 @@ private:
     EventEngine() = default;
     ~EventEngine();
     
-    // 事件处理线程
+    // Event handling thread
     void eventLoop();
     
-    // 处理单个事件
+    // Process a single event
     void processEvent(const EventPtr& event);
     
-    // 事件队列
+    // Event queue
     std::queue<EventPtr> event_queue_;
     mutable std::mutex queue_mutex_;
     std::condition_variable queue_cv_;
     
-    // 事件处理器映射：事件类型 -> <处理器ID, 处理器>
+    // Handler map: EventType -> <handlerID, handler>
     std::map<EventType, std::map<int, EventHandler>> handlers_;
     mutable std::mutex handlers_mutex_;
     
-    // 处理器ID生成器
+    // Handler ID generator
     std::atomic<int> next_handler_id_{0};
     
-    // 事件处理线程
+    // Event processing thread
     std::unique_ptr<std::thread> event_thread_;
     std::atomic<bool> running_{false};
     
-    // 统计信息
+    // Statistics
     std::atomic<uint64_t> processed_count_{0};
 };
 

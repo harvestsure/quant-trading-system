@@ -3,7 +3,7 @@
 #include <sstream>
 #include <algorithm>
 
-// 注意：这里需要包含Futu API的头文件
+// Note: include Futu API headers here if integrating with Futu
 // #include "ftdc_quote_api.h"
 
 DataSubscriber& DataSubscriber::getInstance() {
@@ -14,7 +14,7 @@ DataSubscriber& DataSubscriber::getInstance() {
 bool DataSubscriber::subscribeKLine(const std::string& symbol, const std::string& kline_type) {
     std::lock_guard<std::mutex> lock(mutex_);
     
-    // TODO: 调用Futu API订阅K线
+    // TODO: Call Futu API to subscribe to KLine
     /*
     FTDC_Quote_API* api = FTDC_Quote_API::getInstance();
     bool success = api->subscribeKLine(symbol, kline_type);
@@ -36,7 +36,7 @@ bool DataSubscriber::subscribeKLine(const std::string& symbol, const std::string
 void DataSubscriber::unsubscribeKLine(const std::string& symbol) {
     std::lock_guard<std::mutex> lock(mutex_);
     
-    // TODO: 调用Futu API取消订阅
+    // TODO: Call Futu API to unsubscribe
     /*
     FTDC_Quote_API* api = FTDC_Quote_API::getInstance();
     api->unsubscribeKLine(symbol);
@@ -52,7 +52,7 @@ void DataSubscriber::unsubscribeKLine(const std::string& symbol) {
 bool DataSubscriber::subscribeTick(const std::string& symbol) {
     std::lock_guard<std::mutex> lock(mutex_);
     
-    // TODO: 调用Futu API订阅Tick
+    // TODO: Call Futu API to subscribe to Tick
     /*
     FTDC_Quote_API* api = FTDC_Quote_API::getInstance();
     bool success = api->subscribeTick(symbol);
@@ -74,7 +74,7 @@ bool DataSubscriber::subscribeTick(const std::string& symbol) {
 void DataSubscriber::unsubscribeTick(const std::string& symbol) {
     std::lock_guard<std::mutex> lock(mutex_);
     
-    // TODO: 调用Futu API取消订阅
+    // TODO: Call Futu API to unsubscribe
     /*
     FTDC_Quote_API* api = FTDC_Quote_API::getInstance();
     api->unsubscribeTick(symbol);
@@ -112,7 +112,7 @@ std::vector<KlineData> DataSubscriber::getHistoryKLine(
     
     std::vector<KlineData> klines;
     
-    // TODO: 调用Futu API获取历史K线
+    // TODO: Call Futu API to get historical KLine
     /*
     FTDC_Quote_API* api = FTDC_Quote_API::getInstance();
     api->getHistoryKLine(symbol, kline_type, count, klines);
@@ -129,7 +129,7 @@ Snapshot DataSubscriber::getSnapshot(const std::string& symbol) {
     Snapshot snapshot;
     snapshot.symbol = symbol;
     
-    // TODO: 调用Futu API获取快照
+    // TODO: Call Futu API to get snapshot
     /*
     FTDC_Quote_API* api = FTDC_Quote_API::getInstance();
     api->getSnapshot(symbol, snapshot);
@@ -145,7 +145,7 @@ Snapshot DataSubscriber::getSnapshot(const std::string& symbol) {
 void DataSubscriber::onKLineData(const std::string& symbol, const KlineData& kline) {
     std::lock_guard<std::mutex> lock(mutex_);
     
-    // 触发所有回调
+    // Trigger all callbacks
     for (auto& callback : kline_callbacks_) {
         callback(symbol, kline);
     }
@@ -154,7 +154,7 @@ void DataSubscriber::onKLineData(const std::string& symbol, const KlineData& kli
 void DataSubscriber::onTickData(const std::string& symbol, const TickData& tick) {
     std::lock_guard<std::mutex> lock(mutex_);
     
-    // 触发所有回调
+    // Trigger all callbacks
     for (auto& callback : tick_callbacks_) {
         callback(symbol, tick);
     }
@@ -163,7 +163,7 @@ void DataSubscriber::onTickData(const std::string& symbol, const TickData& tick)
 void DataSubscriber::onSnapshotData(const Snapshot& snapshot) {
     std::lock_guard<std::mutex> lock(mutex_);
     
-    // 触发所有回调
+    // Trigger all callbacks
     for (auto& callback : snapshot_callbacks_) {
         callback(snapshot);
     }

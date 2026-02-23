@@ -6,8 +6,8 @@
 #include <chrono>
 
 /**
- * @brief 演示如何使用消息通知队列系统
- * 本程序展示了完整的初始化流程和各种消息发送方式
+ * @brief Demo of how to use the notification queue system
+ * This program demonstrates the full initialization flow and various message sending methods
  */
 
 int main() {
@@ -15,19 +15,19 @@ int main() {
         LOG_INFO("=== Notification System Demo ===");
         
         // ============================================
-        // 步骤1：加载配置
+        // Step 1: Load configuration
         // ============================================
         LOG_INFO("Step 1: Loading configuration...");
         ConfigManager& config_mgr = ConfigManager::getInstance();
         
-        // 尝试加载 config.json，如果不存在会失败，这是正常的
+        // Attempt to load config.json; if missing, defaults will be used
         if (!config_mgr.loadFromJson("config.json")) {
             LOG_WARN("config.json not found, using default settings");
-            // 系统会使用默认配置
+            // The system will use default settings
         }
         
         // ============================================
-        // 步骤2：初始化通知系统
+        // Step 2: Initialize notification system
         // ============================================
         LOG_INFO("Step 2: Initializing notification system...");
         NotificationManager& notif_mgr = NotificationManager::getInstance();
@@ -41,7 +41,7 @@ int main() {
         LOG_INFO("Notification system initialized successfully!");
         
         // ============================================
-        // 步骤3：获取队列状态
+        // Step 3: Get queue status
         // ============================================
         auto& queue = notif_mgr.getQueue();
         LOG_INFO("Queue size: " << queue.getQueueSize());
@@ -49,15 +49,15 @@ int main() {
         LOG_INFO("Failed count: " << queue.getFailedCount());
         
         // ============================================
-        // 步骤4：发送不同类型的消息
+        // Step 4: Send different types of test messages
         // ============================================
         LOG_INFO("Step 3: Sending test messages...");
         
-        // 发送信息消息
+        // Send an info message
         notif_mgr.sendInfo("🟢 Trading system started successfully");
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
         
-        // 发送交易信号
+        // Send a trade signal message
         notif_mgr.sendTradeSignal("📊 MOMENTUM SIGNAL:\n"
                                   "Symbol: AAPL\n"
                                   "Side: BUY\n"
@@ -65,7 +65,7 @@ int main() {
                                   "Confidence: 85%");
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
         
-        // 发送交易执行消息
+        // Send a trade execution message
         notif_mgr.sendTradeExecution("✅ ORDER EXECUTED:\n"
                                      "Symbol: AAPL\n"
                                      "Side: BUY\n"
@@ -74,7 +74,7 @@ int main() {
                                      "Total: $15,026.00");
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
         
-        // 发送错误消息
+        // Send an error message
         notif_mgr.sendError("⚠️ RISK ALERT:\n"
                            "Daily loss exceeded threshold\n"
                            "Current loss: 2.5%\n"
@@ -82,19 +82,19 @@ int main() {
                            "Action: Positions locked");
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
         
-        // 使用通用消息发送方法（自定义类型）
+        // Use the generic sendMessage method (custom type)
         NotificationQueue::getInstance().sendMessage(
             "Custom message with custom type",
             "custom_event"
         );
         
         // ============================================
-        // 步骤5：等待消息发送完成
+        // Step 5: Wait for messages to be sent
         // ============================================
         LOG_INFO("Step 4: Waiting for all messages to be sent...");
         LOG_INFO("Queue size: " << queue.getQueueSize());
         
-        // 等待队列清空（最多等待10秒）
+        // Wait for the queue to empty (timeout: 10 seconds)
         if (notif_mgr.waitUntilEmpty(10)) {
             LOG_INFO("All messages sent successfully!");
         } else {
@@ -102,7 +102,7 @@ int main() {
         }
         
         // ============================================
-        // 步骤6：查看最终统计
+        // Step 6: Final statistics
         // ============================================
         LOG_INFO("=== Final Statistics ===");
         LOG_INFO("Sent count: " << queue.getSentCount());
@@ -110,7 +110,7 @@ int main() {
         LOG_INFO("Queue size: " << queue.getQueueSize());
         
         // ============================================
-        // 步骤7：优雅关闭
+        // Step 7: Graceful shutdown
         // ============================================
         LOG_INFO("Step 5: Shutting down notification system...");
         notif_mgr.shutdown();
@@ -127,41 +127,41 @@ int main() {
 
 
 /*
-=== 如何运行此演示 ===
+=== How to run this demo ===
 
-1. 编译项目
-   cd /Users/sure/Code/quant-trading-system
-   mkdir build && cd build
-   cmake ..
-   make
+1. Build the project
+    cd /Users/sure/Code/quant-trading-system
+    mkdir build && cd build
+    cmake ..
+    make
 
-2. 配置 Telegram（可选）
-   
-   如果要实际发送Telegram消息，需要：
-   a. 创建 config.json（从 config.json.example 复制）
-   b. 生成 Telegram Bot Token （见 NOTIFICATION_SYSTEM.md）
-   c. 获取 Chat ID （见 NOTIFICATION_SYSTEM.md）
-   d. 更新 config.json 中的通知配置
-   
-   {
-     "notification": {
-       "telegram": {
-         "enabled": true,
-         "bot_token": "YOUR_BOT_TOKEN",
-         "chat_id": "YOUR_CHAT_ID"
-       }
-     }
-   }
+2. Configure Telegram (optional)
 
-3. 运行演示程序
-   ./notification_demo
-   
-   查看日志输出来确认消息是否成功入队和发送
+    To actually send Telegram messages, you need to:
+    a. Create config.json (copy from config.json.example)
+    b. Generate a Telegram Bot Token (see NOTIFICATION_SYSTEM.md)
+    c. Obtain the Chat ID (see NOTIFICATION_SYSTEM.md)
+    d. Update the notification settings in config.json
 
-4. 检查 Telegram 接收到的消息
-   在你配置的Chat中应该会看到5条演示消息
+    {
+      "notification": {
+         "telegram": {
+            "enabled": true,
+            "bot_token": "YOUR_BOT_TOKEN",
+            "chat_id": "YOUR_CHAT_ID"
+         }
+      }
+    }
 
-=== 输出示例 ===
+3. Run the demo
+    ./notification_demo
+
+    Check the logs to confirm messages were enqueued and sent
+
+4. Verify Telegram messages
+    You should see 5 demo messages in the chat you configured
+
+=== Example output ===
 
 [INFO] === Notification System Demo ===
 [INFO] Step 1: Loading configuration...

@@ -20,27 +20,27 @@ class RiskManager {
 public:
     static RiskManager& getInstance();
     
-    // 风险检查
+    // Risk checks
     bool checkOrderRisk(const std::string& symbol, int quantity, double price);
-    
-    // 检查是否需要止损/止盈
+
+    // Check stop-loss / take-profit conditions
     bool shouldStopLoss(const std::string& symbol, double current_price);
     bool shouldTakeProfit(const std::string& symbol, double current_price);
-    
-    // 计算建议仓位
+
+    // Calculate suggested position size
     int calculatePositionSize(double stock_price, double available_cash);
-    
-    // 更新风险指标
+
+    // Update risk metrics
     void updateDailyPnL(double pnl);
     void recordTrade(bool is_winning);
-    
-    // 获取风险指标
+
+    // Get risk metrics
     RiskMetrics getRiskMetrics() const;
-    
-    // 重置每日统计
+
+    // Reset daily statistics
     void resetDailyMetrics();
-    
-    // 禁止拷贝
+
+    // Non-copyable
     RiskManager(const RiskManager&) = delete;
     RiskManager& operator=(const RiskManager&) = delete;
     

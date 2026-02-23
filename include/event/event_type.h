@@ -4,35 +4,35 @@
 
  
 
-// 事件类型定义
+// Event type definitions
 enum class EventType {
-    // 行情事件
-    EVENT_TICK,              // Tick数据
-    EVENT_KLINE,             // K线数据
-    EVENT_DEPTH,             // 深度行情
-    EVENT_TRADE,             // 逐笔成交
+    // Market data events
+    EVENT_TICK,              // Tick data
+    EVENT_KLINE,             // Kline data
+    EVENT_DEPTH,             // Market depth
+    EVENT_TRADE,             // Trade-by-trade
     
-    // 交易事件
-    EVENT_ORDER,             // 订单状态更新
-    EVENT_TRADE_DEAL,        // 成交回报
-    EVENT_POSITION,          // 持仓更新
-    EVENT_ACCOUNT,           // 账户资金更新
+    // Trading events
+    EVENT_ORDER,             // Order status update
+    EVENT_TRADE_DEAL,        // Trade execution report
+    EVENT_POSITION,          // Position update
+    EVENT_ACCOUNT,           // Account update
     
-    // 系统事件
-    EVENT_LOG,               // 日志事件
-    EVENT_ERROR,             // 错误事件
-    EVENT_TIMER,             // 定时器事件
+    // System events
+    EVENT_LOG,               // Log event
+    EVENT_ERROR,             // Error event
+    EVENT_TIMER,             // Timer event
     
-    // 策略事件
-    EVENT_STRATEGY_START,    // 策略启动
-    EVENT_STRATEGY_STOP,     // 策略停止
-    EVENT_SIGNAL,            // 交易信号
+    // Strategy events
+    EVENT_STRATEGY_START,    // Strategy start
+    EVENT_STRATEGY_STOP,     // Strategy stop
+    EVENT_SIGNAL,            // Trading signal
     
-    // 扫描事件
-    EVENT_SCAN_RESULT        // 扫描结果
+    // Scan events
+    EVENT_SCAN_RESULT        // Scan result
 };
 
-// 事件类型转字符串
+// Event type to string conversion
 inline std::string eventTypeToString(EventType type) {
     switch (type) {
         case EventType::EVENT_TICK: return "EVENT_TICK";

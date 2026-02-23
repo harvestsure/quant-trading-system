@@ -23,26 +23,26 @@ class PositionManager {
 public:
     static PositionManager& getInstance();
     
-    // 更新持仓
+    // Update position
     void updatePosition(const std::string& symbol, int quantity, double price);
-    
-    // 更新市价
+
+    // Update market price
     void updateMarketPrice(const std::string& symbol, double price);
-    
-    // 获取持仓
+
+    // Get position
     Position* getPosition(const std::string& symbol);
     std::map<std::string, Position> getAllPositions();
-    
-    // 持仓查询
+
+    // Position queries
     int getTotalPositions() const;
     double getTotalMarketValue() const;
     double getTotalProfitLoss() const;
     bool hasPosition(const std::string& symbol) const;
-    
-    // 清空持仓（用于测试）
+
+    // Clear positions (for testing)
     void clearPositions();
-    
-    // 禁止拷贝
+
+    // Non-copyable
     PositionManager(const PositionManager&) = delete;
     PositionManager& operator=(const PositionManager&) = delete;
     

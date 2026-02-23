@@ -6,31 +6,31 @@
 #include <memory>
 #include <mutex>
 
-// 前向声明
+// Forward declaration
 class IEventEngine;
 
  
 
-// 交易所管理器 - 支持多交易所的统一入口
+// Exchange manager - unified entry supporting multiple exchanges
 class ExchangeManager {
 public:
     static ExchangeManager& getInstance();
     
-    // 初始化单个交易所
+    // Initialize a single exchange
     bool initExchange(const ExchangeInstanceConfig& config);
     
-    // 初始化所有启用的交易所
+    // Initialize all enabled exchanges
     bool initAllExchanges(const std::vector<ExchangeInstanceConfig>& configs);
     
-    // 设置事件引擎（应在初始化交易所之前调用）
+    // Set the event engine (should be called before initializing exchanges)
     void setEventEngine(IEventEngine* event_engine);
     
-    // 获取交易所实例
+    // Get exchange instance
     std::shared_ptr<IExchange> getExchange(const std::string& exchange_name);
     std::vector<std::shared_ptr<IExchange>> getAllExchanges();
     std::vector<std::shared_ptr<IExchange>> getEnabledExchanges();
 
-    // 快捷方法 - 转发到主交易所
+    // Convenience methods - forward to the main exchange
     bool connect(const std::string& exchange_name);
     bool disconnect(const std::string& exchange_name);
     bool isConnected(const std::string& exchange_name);
@@ -67,18 +67,18 @@ public:
     std::vector<std::string> getMarketStockList(const std::string& exchange_name);
     std::map<std::string, Snapshot> getBatchSnapshots(const std::string& exchange_name, const std::vector<std::string>& stock_codes);
     
-    // Callbacks have been replaced with event engine
-    
-    // 禁止拷贝
+    // Callbacks have been replaced with the event engine
+
+    // Non-copyable
     ExchangeManager(const ExchangeManager&) = delete;
     ExchangeManager& operator=(const ExchangeManager&) = delete;
     
 private:
     ExchangeManager() = default;
     
-    std::map<std::string, std::shared_ptr<IExchange>> exchanges_;  // 多交易所存储
+    std::map<std::string, std::shared_ptr<IExchange>> exchanges_;  // storage for multiple exchanges
     mutable std::mutex mutex_;
-    IEventEngine* event_engine_ = nullptr;  // 事件引擎指针
+    IEventEngine* event_engine_ = nullptr;  // pointer to event engine
 };
 
  

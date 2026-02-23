@@ -32,7 +32,7 @@ void StrategyBase::stop() {
     
     running_ = false;
     
-    // 取消所有订阅
+    // Unsubscribe from all subscriptions
     auto& subscriber = DataSubscriber::getInstance();
     for (const auto& pair : subscribed_stocks_) {
         subscriber.unsubscribeKLine(pair.first);
@@ -46,7 +46,7 @@ void StrategyBase::stop() {
 }
 
 void StrategyBase::onKLine(const std::string& symbol, const KlineData& kline) {
-    // 默认实现为空，子类可以覆盖
+    // Default implementation is empty; subclasses may override
     (void)symbol;
     (void)kline;
 
@@ -54,7 +54,7 @@ void StrategyBase::onKLine(const std::string& symbol, const KlineData& kline) {
 }
 
 void StrategyBase::onTick(const std::string& symbol, const TickData& tick) {
-    // 默认实现为空，子类可以覆盖
+    // Default implementation is empty; subclasses may override
     (void)symbol;
     (void)tick;
 
@@ -62,7 +62,7 @@ void StrategyBase::onTick(const std::string& symbol, const TickData& tick) {
 }
 
 void StrategyBase::onSnapshot(const Snapshot& snapshot) {
-    // 默认实现为空，子类可以覆盖
+    // Default implementation is empty; subclasses may override
     (void)snapshot;
 
     LOG_INFO("Strategy " + name_ + " received Snapshot data");
@@ -70,12 +70,12 @@ void StrategyBase::onSnapshot(const Snapshot& snapshot) {
 
 void StrategyBase::subscribeStock(const std::string& symbol) {
     if (subscribed_stocks_.find(symbol) != subscribed_stocks_.end()) {
-        return;  // 已订阅
+        return;  // already subscribed
     }
     
     auto& subscriber = DataSubscriber::getInstance();
     
-    // 订阅5分钟K线和Tick数据
+    // Subscribe to 5-minute KLine and Tick data
     subscriber.subscribeKLine(symbol, "K_5M");
     subscriber.subscribeTick(symbol);
     
@@ -89,7 +89,7 @@ void StrategyBase::subscribeStock(const std::string& symbol) {
 void StrategyBase::unsubscribeStock(const std::string& symbol) {
     auto it = subscribed_stocks_.find(symbol);
     if (it == subscribed_stocks_.end()) {
-        return;  // 未订阅
+        return;  // not subscribed
     }
     
     auto& subscriber = DataSubscriber::getInstance();
@@ -106,7 +106,7 @@ void StrategyBase::unsubscribeStock(const std::string& symbol) {
 bool StrategyBase::buy(const std::string& symbol, int quantity, double price) {
     auto& executor = OrderExecutor::getInstance();
     
-    // 如果价格为0，使用市价单
+    // Use market order if price is 0
     OrderType order_type = (price == 0.0) ? OrderType::MARKET : OrderType::LIMIT;
     
     std::string order_id = executor.placeOrder(
@@ -134,7 +134,7 @@ bool StrategyBase::buy(const std::string& symbol, int quantity, double price) {
 bool StrategyBase::sell(const std::string& symbol, int quantity, double price) {
     auto& executor = OrderExecutor::getInstance();
     
-    // 如果价格为0，使用市价单
+    // Use market order if price is 0
     OrderType order_type = (price == 0.0) ? OrderType::MARKET : OrderType::LIMIT;
     
     std::string order_id = executor.placeOrder(

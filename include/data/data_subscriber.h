@@ -10,7 +10,7 @@
 
  
 
-// 数据回调函数类型（保留为兼容性，使用 common/object.h 中的数据结构）
+// Data callback function types (kept for compatibility; use structures from common/object.h)
 using KLineCallback = std::function<void(const std::string&, const KlineData&)>;
 using TickCallback = std::function<void(const std::string&, const TickData&)>;
 using SnapshotCallback = std::function<void(const Snapshot&)>;
@@ -19,30 +19,30 @@ class DataSubscriber {
 public:
     static DataSubscriber& getInstance();
     
-    // 订阅K线数据
+    // Subscribe to K-line (candlestick) data
     bool subscribeKLine(const std::string& symbol, const std::string& kline_type);
     void unsubscribeKLine(const std::string& symbol);
     
-    // 订阅Tick数据
+    // Subscribe to tick data
     bool subscribeTick(const std::string& symbol);
     void unsubscribeTick(const std::string& symbol);
     
-    // 注册回调函数
+    // Register callback handlers
     void registerKLineCallback(KLineCallback callback);
     void registerTickCallback(TickCallback callback);
     void registerSnapshotCallback(SnapshotCallback callback);
     
-    // 获取历史K线数据
+    // Retrieve historical K-line data
     std::vector<KlineData> getHistoryKLine(
         const std::string& symbol,
         const std::string& kline_type,
         int count
     );
     
-    // 获取快照数据
+    // Get snapshot data
     Snapshot getSnapshot(const std::string& symbol);
     
-    // 禁止拷贝
+    // Non-copyable
     DataSubscriber(const DataSubscriber&) = delete;
     DataSubscriber& operator=(const DataSubscriber&) = delete;
     
@@ -58,7 +58,7 @@ private:
     
     mutable std::mutex mutex_;
     
-    // 数据处理
+    // Data handlers
     void onKLineData(const std::string& symbol, const KlineData& kline);
     void onTickData(const std::string& symbol, const TickData& tick);
     void onSnapshotData(const Snapshot& snapshot);

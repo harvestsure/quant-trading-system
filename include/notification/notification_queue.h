@@ -9,14 +9,14 @@
 #include <atomic>
 
 /**
- * @brief 消息对象，用于在队列中传输
+ * @brief Notification message object for queue transport
  */
 struct NotificationMessage {
-    std::string id;           // 消息唯一ID
-    std::string content;      // 消息内容
-    std::string type;         // 消息类型（trade, signal, error, info等）
-    int64_t timestamp;        // 消息时间戳
-    int retry_count = 0;      // 重试次数
+    std::string id;           // unique message ID
+    std::string content;      // message content
+    std::string type;         // message type (trade, signal, error, info, etc.)
+    int64_t timestamp;        // message timestamp
+    int retry_count = 0;      // retry count
     
     NotificationMessage() = default;
     NotificationMessage(const std::string& content, const std::string& type = "info")
@@ -24,91 +24,91 @@ struct NotificationMessage {
 };
 
 /**
- * @brief 通知消息发送器的抽象接口
+ * @brief Abstract interface for notification senders
  */
 class INotificationSender {
 public:
     virtual ~INotificationSender() = default;
     
     /**
-     * @brief 发送消息
-     * @param message 待发送的消息
+     * @brief Send a message
+     * @param message the message to send
      * @return true if success, false otherwise
      */
     virtual bool send(const NotificationMessage& message) = 0;
     
     /**
-     * @brief 检查发送器是否就绪
+     * @brief Check whether the sender is ready
      */
     virtual bool isReady() const = 0;
 };
 
 /**
- * @brief 消息通知队列，负责消息的缓存和分发
+ * @brief Notification queue responsible for buffering and dispatching messages
  */
 class NotificationQueue {
 public:
     /**
-     * @brief 获取单例实例
+     * @brief Get singleton instance
      */
     static NotificationQueue& getInstance();
     
     /**
-     * @brief 初始化队列，启动后台处理线程
-     * @param max_queue_size 队列最大容量
+     * @brief Initialize the queue and start the background worker thread
+     * @param max_queue_size maximum queue capacity
      * @return true if success
      */
     bool initialize(size_t max_queue_size = 1000);
     
     /**
-     * @brief 关闭队列，停止处理线程
+     * @brief Shutdown the queue and stop the worker thread
      */
     void shutdown();
     
     /**
-     * @brief 将消息加入队列
-     * @param message 待加入的消息
+     * @brief Enqueue a message
+     * @param message the message to enqueue
      * @return true if added successfully, false if queue is full or not initialized
      */
     bool enqueue(const NotificationMessage& message);
     
     /**
-     * @brief 便捷方法：直接发送文本消息
-     * @param content 消息内容
-     * @param type 消息类型
+     * @brief Convenience: enqueue a plain text message
+     * @param content message content
+     * @param type message type
      * @return true if enqueued successfully
      */
     bool sendMessage(const std::string& content, const std::string& type = "info");
     
     /**
-     * @brief 注册消息发送器
-     * @param sender 消息发送器实现
+     * @brief Register a notification sender implementation
+     * @param sender sender implementation
      */
     void registerSender(std::shared_ptr<INotificationSender> sender);
     
     /**
-     * @brief 获取当前队列大小
+     * @brief Get current queue size
      */
     size_t getQueueSize() const;
     
     /**
-     * @brief 获取已发送消息数
+     * @brief Get count of sent messages
      */
     size_t getSentCount() const { return sent_count_; }
     
     /**
-     * @brief 获取失败消息数
+     * @brief Get count of failed messages
      */
     size_t getFailedCount() const { return failed_count_; }
     
     /**
-     * @brief 等待队列清空（用于优雅关闭）
-     * @param timeout_seconds 超时时间（秒）
+     * @brief Wait until the queue is empty (for graceful shutdown)
+     * @param timeout_seconds timeout in seconds
      * @return true if queue is empty before timeout
      */
     bool waitUntilEmpty(int timeout_seconds = 10);
     
-    // 禁止拷贝和移动
+    // Non-copyable and non-movable
     NotificationQueue(const NotificationQueue&) = delete;
     NotificationQueue& operator=(const NotificationQueue&) = delete;
     NotificationQueue(NotificationQueue&&) = delete;
@@ -119,16 +119,16 @@ private:
     ~NotificationQueue();
     
     /**
-     * @brief 后台处理线程的主函数
+     * @brief Background worker thread main function
      */
     void processingThread();
     
     /**
-     * @brief 处理单条消息
+     * @brief Process a single message
      */
     void processMessage(const NotificationMessage& message);
     
-    // 队列和线程管理
+    // Queue and thread management
     std::queue<NotificationMessage> message_queue_;
     mutable std::mutex queue_mutex_;
     std::condition_variable queue_cv_;
@@ -141,7 +141,7 @@ private:
     std::atomic<size_t> sent_count_ = 0;
     std::atomic<size_t> failed_count_ = 0;
     
-    // 消息发送器
+    // Notification senders
     std::vector<std::shared_ptr<INotificationSender>> senders_;
     mutable std::mutex sender_mutex_;
 };

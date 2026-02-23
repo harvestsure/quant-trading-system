@@ -29,7 +29,7 @@ FutuExchange::~FutuExchange() {
     disconnect();
 }
 
-// ========== 连接管理 ==========
+// ========== Connection Management ==========
 
 bool FutuExchange::connect() {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -43,10 +43,10 @@ bool FutuExchange::connect() {
     
     #ifdef ENABLE_FUTU
     try {
-        // 创建 SPI 回调处理和API管理
+        // Create SPI callback handler and API manager
         spi_ = new FutuSpi(this);
         
-        // 初始化API
+        // Initialize API
         if (!spi_->InitApi(config_.host, config_.port)) {
             writeLog(LogLevel::Error, "Failed to initialize FTAPI");
             delete spi_;
@@ -54,11 +54,11 @@ bool FutuExchange::connect() {
             return false;
         }
         
-        // 等待连接成功
+        // Wait for successful connection
         
         writeLog(LogLevel::Info, "FTAPI connection initialized");
         
-        // 如果是实盘交易，需要解锁
+        // If this is live trading, unlocking is required
         if (!config_.is_simulation && !config_.unlock_password.empty()) {
             if (!unlockTrade()) {
                 writeLog(LogLevel::Error, "Failed to unlock trade");
@@ -67,7 +67,7 @@ bool FutuExchange::connect() {
             }
         }
         
-        // 获取账户列表
+        // Retrieve account list
         if (!getAccountList()) {
             writeLog(LogLevel::Warn, "Failed to get account list");
         }
@@ -118,7 +118,7 @@ bool FutuExchange::isConnected() const {
     return connected_;
 }
 
-// ========== 内部辅助方法 ==========
+// ========== Internal helper methods ==========
 
 bool FutuExchange::unlockTrade() {
     if (config_.unlock_password.empty()) {
@@ -139,7 +139,7 @@ bool FutuExchange::unlockTrade() {
             return false;
         }
         
-        // 等待响应
+        // wait for reply
         if (!spi_->WaitForReply(serial_no, 5000)) {
             writeLog(LogLevel::Error, "Unlock trade timeout");
             return false;
@@ -172,13 +172,13 @@ bool FutuExchange::getAccountList() {
             return false;
         }
         
-        // 等待响应
+        // wait for reply
         if (!spi_->WaitForReply(serial_no, 5000)) {
             writeLog(LogLevel::Error, "Get account list timeout");
             return false;
         }
         
-        // 从响应中获取账户列表
+        // extract account list from response
         {
             std::lock_guard<std::mutex> lock(spi_->mutex_);
             auto it = spi_->acc_list_responses_.find(serial_no);
@@ -221,7 +221,7 @@ Qot_Common::Security FutuExchange::convertToSecurity(const std::string& symbol) 
     Qot_Common::Security security;
     
     #ifdef ENABLE_FUTU
-    // 解析 symbol，格式可能是 "00700" 或 "HK.00700"
+    // Parse symbol; format may be "00700" or "HK.00700"
     std::string market_str = config_.market;
     std::string code = symbol;
     
@@ -231,7 +231,7 @@ Qot_Common::Security FutuExchange::convertToSecurity(const std::string& symbol) 
         code = symbol.substr(dot_pos + 1);
     }
     
-    // 转换市场类型
+    // Convert market type
     int32_t market_type = Qot_Common::QotMarket_HK_Security;
     if (market_str == "HK") {
         market_type = Qot_Common::QotMarket_HK_Security;
@@ -272,14 +272,14 @@ int32_t FutuExchange::convertKLineType(const std::string& kline_type) {
         return Qot_Common::KLType_Month;
     }
     
-    // 默认返回5分钟
+    // Default to 5 minutes
     return Qot_Common::KLType_5Min;
     #else
     return 0;
     #endif
 }
 
-// ========== 账户相关 ==========
+// ========== Account Related ==========
 
 AccountInfo FutuExchange::getAccountInfo() {
     if (!connected_) {
@@ -301,7 +301,7 @@ AccountInfo FutuExchange::getAccountInfo() {
     }
     
     try {
-        // 使用第一个账户
+        // use the first account
         uint64_t acc_id = account_ids_[0];
         
         Futu::u32_t serial_no = spi_->SendGetFunds(acc_id, 
@@ -312,13 +312,13 @@ AccountInfo FutuExchange::getAccountInfo() {
             return info;
         }
         
-        // 等待响应
+        // wait for reply
         if (!spi_->WaitForReply(serial_no, 5000)) {
             writeLog(LogLevel::Error, "Get funds timeout");
             return info;
         }
         
-        // 从响应中提取资金信息
+        // extract funds info from response
         {
             std::lock_guard<std::mutex> lock(spi_->mutex_);
             auto it = spi_->funds_responses_.find(serial_no);
@@ -369,7 +369,7 @@ std::vector<ExchangePosition> FutuExchange::getPositions() {
     }
     
     try {
-        // 使用第一个账户
+        // use the first account
         uint64_t acc_id = account_ids_[0];
         
         Futu::u32_t serial_no = spi_->SendGetPositionList(acc_id,
@@ -380,13 +380,13 @@ std::vector<ExchangePosition> FutuExchange::getPositions() {
             return positions;
         }
         
-        // 等待响应
+        // wait for reply
         if (!spi_->WaitForReply(serial_no, 5000)) {
             writeLog(LogLevel::Error, "Get position list timeout");
             return positions;
         }
         
-        // 从响应中提取持仓信息
+        // extract positions info from response
         {
             std::lock_guard<std::mutex> lock(spi_->mutex_);
             auto it = spi_->position_responses_.find(serial_no);
@@ -405,7 +405,7 @@ std::vector<ExchangePosition> FutuExchange::getPositions() {
                         position.quantity = static_cast<int>(pos.qty());
                         position.avg_price = pos.costprice();
                         position.current_price = pos.price();
-                        position.market_value = pos.price() * pos.qty();  // 计算市值
+                        position.market_value = pos.price() * pos.qty();  // calculate market value
                         position.cost_price = pos.costprice() * pos.qty();
                         position.profit_loss = pos.has_plval() ? pos.plval() : 0.0;
                         position.profit_loss_ratio = pos.has_plratio() ? pos.plratio() : 0.0;
@@ -431,7 +431,7 @@ double FutuExchange::getAvailableFunds() {
     return info.available_funds;
 }
 
-// ========== 交易相关 ==========
+// ========== Trading Related ==========
 
 std::string FutuExchange::placeOrder(
     const std::string& symbol,
@@ -466,10 +466,10 @@ std::string FutuExchange::placeOrder(
     }
     
     try {
-        // 使用第一个账户
+        // Use the first account
         uint64_t acc_id = account_ids_[0];
         
-        // 设置交易方向
+        // Set trade side
         int order_side = Trd_Common::TrdSide_Buy;
         if (side == "BUY") {
             order_side = Trd_Common::TrdSide_Buy;
@@ -477,14 +477,14 @@ std::string FutuExchange::placeOrder(
             order_side = Trd_Common::TrdSide_Sell;
         }
         
-        // 设置订单类型
+        // Set order type
         int order_type_val = Trd_Common::OrderType_Normal;
         if (order_type == "MARKET") {
             order_type_val = Trd_Common::OrderType_Market;
-            price = 0.0;  // 市价单不需要价格
+            price = 0.0;  // Market orders do not need a price
         }
         
-        // 创建股票对象
+        // Create security object
         Qot_Common::Security security = convertToSecurity(symbol);
         
         Futu::u32_t serial_no = spi_->SendPlaceOrder(acc_id,
@@ -496,13 +496,13 @@ std::string FutuExchange::placeOrder(
             return order_id;
         }
         
-        // 等待响应
+        // Wait for response
         if (!spi_->WaitForReply(serial_no, 5000)) {
             writeLog(LogLevel::Error, "Place order timeout");
             return order_id;
         }
         
-        // 从响应中提取订单ID
+        // Extract order ID from response
         {
             std::lock_guard<std::mutex> lock(spi_->mutex_);
             auto it = spi_->place_order_responses_.find(serial_no);
@@ -555,7 +555,7 @@ bool FutuExchange::cancelOrder(const std::string& order_id) {
             return false;
         }
         
-        // 等待响应
+        // Wait for response
         if (!spi_->WaitForReply(serial_no, 5000)) {
             writeLog(LogLevel::Error, "Cancel order timeout");
             return false;
@@ -603,7 +603,7 @@ bool FutuExchange::modifyOrder(const std::string& order_id, int new_quantity, do
             return false;
         }
         
-        // 等待响应
+        // Wait for response
         if (!spi_->WaitForReply(serial_no, 5000)) {
             writeLog(LogLevel::Error, "Modify order timeout");
             return false;
@@ -632,8 +632,8 @@ OrderData FutuExchange::getOrderStatus(const std::string& order_id) {
     order.status = OrderStatus::SUBMITTED;
     
     #ifdef ENABLE_FUTU
-    // TODO: 实现查询订单状态
-    // 可以使用 GetOrderList 接口查询当日订单
+    // TODO: implement order status query
+    // You can use the GetOrderList API to query today's orders
     #endif
     
     return order;
@@ -643,14 +643,14 @@ std::vector<OrderData> FutuExchange::getOrderHistory(int days) {
     (void)days;
     
     #ifdef ENABLE_FUTU
-    // TODO: 实现查询历史订单
-    // 使用 GetHistoryOrderList 接口
+    // TODO: implement historical order query
+    // Use the GetHistoryOrderList API
     #endif
     
     return {};
 }
 
-// ========== 行情数据相关 ==========
+// ========== Market Data Related ==========
 
 bool FutuExchange::subscribeKLine(const std::string& symbol, const std::string& kline_type) {
     if (!connected_) {
@@ -665,7 +665,7 @@ bool FutuExchange::subscribeKLine(const std::string& symbol, const std::string& 
     }
     
     try {
-        // 创建股票对象
+        // create security object
         Qot_Common::Security security = convertToSecurity(symbol);
         int32_t kl_type = convertKLineType(kline_type);
         
@@ -675,7 +675,7 @@ bool FutuExchange::subscribeKLine(const std::string& symbol, const std::string& 
             return false;
         }
         
-        // 等待响应
+        // wait for reply
         if (!spi_->WaitForReply(serial_no, 5000)) {
             writeLog(LogLevel::Error, "Subscribe KLine timeout");
             return false;
@@ -755,7 +755,7 @@ bool FutuExchange::subscribeTick(const std::string& symbol) {
             return false;
         }
         
-        // 等待响应
+        // wait for reply
         if (!spi_->WaitForReply(serial_no, 5000)) {
             writeLog(LogLevel::Error, "Subscribe Tick timeout");
             return false;
@@ -785,7 +785,7 @@ bool FutuExchange::unsubscribeTick(const std::string& symbol) {
         return false;
     }
     
-    // TODO: 实现取消Tick订阅
+    // TODO: implement unsubscribe Tick
     return true;
 }
 
@@ -817,13 +817,13 @@ std::vector<KlineData> FutuExchange::getHistoryKLine(
             return klines;
         }
         
-        // 等待响应
+        // Wait for response
         if (!spi_->WaitForReply(serial_no, 10000)) {
             writeLog(LogLevel::Error, "Get history KLine timeout");
             return klines;
         }
         
-        // 从响应中提取K线数据
+        // Extract K-line data from response
         {
             std::lock_guard<std::mutex> lock(spi_->mutex_);
             auto it = spi_->history_kline_responses_.find(serial_no);
@@ -888,13 +888,13 @@ Snapshot FutuExchange::getSnapshot(const std::string& symbol) {
             return snapshot;
         }
         
-        // 等待响应
+        // Wait for response
         if (!spi_->WaitForReply(serial_no, 5000)) {
             writeLog(LogLevel::Error, "Get snapshot timeout");
             return snapshot;
         }
         
-        // 从响应中提取快照数据
+        // Extract snapshot data from response
         {
             std::lock_guard<std::mutex> lock(spi_->mutex_);
             auto it = spi_->snapshot_responses_.find(serial_no);
@@ -919,7 +919,7 @@ Snapshot FutuExchange::getSnapshot(const std::string& symbol) {
                         snapshot.turnover = basic.turnover();
                         snapshot.turnover_rate = basic.turnoverrate();
                         snapshot.price_change = basic.has_amplitude() ? basic.amplitude() : 0.0;
-                        snapshot.price_change_abs = 0.0;  // 富途API没有提供绝对变化值
+                        snapshot.price_change_abs = 0.0;  // Futu API does not provide absolute change value
                         snapshot.ask_price_1 = basic.has_askprice() ? basic.askprice() : 0.0;
                         snapshot.bid_price_1 = basic.has_bidprice() ? basic.bidprice() : 0.0;
                         snapshot.ask_volume_1 = basic.has_askvol() ? basic.askvol() : 0.0;
@@ -938,7 +938,7 @@ Snapshot FutuExchange::getSnapshot(const std::string& symbol) {
     return snapshot;
 }
 
-// ========== 市场扫描相关 ==========
+// ========== Market scanning ==========
 
 std::vector<std::string> FutuExchange::getMarketStockList() {
     if (!connected_) {
@@ -955,7 +955,7 @@ std::vector<std::string> FutuExchange::getMarketStockList() {
     }
     
     try {
-        // 确定市场类型，对应 Python 中的 market 参数
+        // Determine market type, corresponds to Python 'market' parameter
         int32_t market_type = Qot_Common::QotMarket_HK_Security;
         if (config_.market == "HK") {
             market_type = Qot_Common::QotMarket_HK_Security;
@@ -971,21 +971,21 @@ std::vector<std::string> FutuExchange::getMarketStockList() {
         ss << "Getting stock basic info for market: " << config_.market;
         writeLog(LogLevel::Info, ss.str());
         
-        // 使用 GetStaticInfo 接口获取市场中的所有股票（对应 Python 的 get_stock_basicinfo）
-        // 传入市场类型和股票类型（SecurityType_Eqty 表示股票）
+        // Use GetStaticInfo API to retrieve all stocks in the market (equivalent to Python's get_stock_basicinfo)
+        // Pass market type and security type (SecurityType_Eqty indicates equities)
         Futu::u32_t serial_no = spi_->SendGetStaticInfo(market_type, Qot_Common::SecurityType_Eqty);
         if (serial_no == 0) {
             writeLog(LogLevel::Error, "Failed to send get static info request");
             return stocks;
         }
         
-        // 等待响应（15秒超时，因为股票列表可能很大）
+        // Wait for response (15s timeout because stock list may be large)
         if (!spi_->WaitForReply(serial_no, 15000)) {
             writeLog(LogLevel::Error, "Get static info timeout");
             return stocks;
         }
         
-        // 从响应中提取股票代码
+        // Extract stock codes from response
         {
             std::lock_guard<std::mutex> lock(spi_->mutex_);
             auto it = spi_->static_info_responses_.find(serial_no);
@@ -1021,11 +1021,11 @@ std::vector<std::string> FutuExchange::getMarketStockList() {
     }
     #else
     LOG_WARN("FTAPI is not enabled, returning sample stocks");
-    stocks.push_back("00700");  // 腾讯
-    stocks.push_back("09988");  // 阿里巴巴
-    stocks.push_back("03690");  // 美团
-    stocks.push_back("01810");  // 小米
-    stocks.push_back("02318");  // 平安
+    stocks.push_back("00700");  // Tencent
+    stocks.push_back("09988");  // Alibaba
+    stocks.push_back("03690");  // Meituan
+    stocks.push_back("01810");  // Xiaomi
+    stocks.push_back("02318");  // Ping An
     #endif
     
     std::stringstream ss;
@@ -1052,7 +1052,7 @@ std::map<std::string, Snapshot> FutuExchange::getBatchSnapshots(
     }
     
     try {
-        // 转换股票代码列表
+        // Convert stock code list
         std::vector<Qot_Common::Security> securities;
         for (const auto& code : stock_codes) {
             securities.push_back(convertToSecurity(code));
@@ -1064,13 +1064,13 @@ std::map<std::string, Snapshot> FutuExchange::getBatchSnapshots(
             return snapshots;
         }
         
-        // 等待响应
+        // Wait for response
         if (!spi_->WaitForReply(serial_no, 10000)) {
             writeLog(LogLevel::Error, "Batch get snapshot timeout");
             return snapshots;
         }
         
-        // 从响应中提取快照数据
+        // Extract snapshot data from response
         {
             std::lock_guard<std::mutex> lock(spi_->mutex_);
             auto it = spi_->snapshot_responses_.find(serial_no);
@@ -1099,7 +1099,7 @@ std::map<std::string, Snapshot> FutuExchange::getBatchSnapshots(
                         snapshot.turnover = basic.turnover();
                         snapshot.turnover_rate = basic.turnoverrate();
                         snapshot.price_change = basic.has_amplitude() ? basic.amplitude() : 0.0;
-                        snapshot.price_change_abs = 0.0;  // 富途API没有提供绝对变化值
+                        snapshot.price_change_abs = 0.0;  // Futu API does not provide absolute change value
                         snapshot.ask_price_1 = basic.has_askprice() ? basic.askprice() : 0.0;
                         snapshot.bid_price_1 = basic.has_bidprice() ? basic.bidprice() : 0.0;
                         snapshot.ask_volume_1 = basic.has_askvol() ? basic.askvol() : 0.0;
@@ -1122,14 +1122,14 @@ std::map<std::string, Snapshot> FutuExchange::getBatchSnapshots(
 }
 
 
-// ========== 事件引擎 ==========
+// ========== Event engine ==========
 void FutuExchange::writeLog(LogLevel level, const std::string& message) {
     auto current_timestamp =  std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::system_clock::now().time_since_epoch()
         ).count();
 
     if (event_engine_) {
-        // 通过事件引擎发布日志
+        // Publish logs via event engine
         LogData log_data;
         log_data.level = level;
         log_data.message = "[FutuExchange] " + message;
@@ -1142,7 +1142,7 @@ void FutuExchange::writeLog(LogLevel level, const std::string& message) {
 
         auto strLevel = levelToString(level);
 
-        // 回退到直接使用 Logger
+        // Fallback to direct Logger
         switch (level) {
             case LogLevel::Debug:
             case LogLevel::Info:
@@ -1164,7 +1164,7 @@ IExchange* GetExchangeInstance(IEventEngine* event_engine, const std::map<std::s
 
     FutuConfig futu_config;
     
-    // 从配置中读取参数
+    // Read params from config
     if (config.find("host") != config.end()) {
         futu_config.host = config.at("host");
     }

@@ -6,7 +6,7 @@
 #include <map>
 #include <thread>
 
-// 前向声明
+// Forward declaration
 class IEventEngine;
 
 // Forward declarations
@@ -21,7 +21,7 @@ namespace Qot_Common {
 class FutuSpi;
 #endif
 
-// Futu API 配置
+// Futu API configuration
 struct FutuConfig {
     std::string host = "127.0.0.1";
     int port = 11111;
@@ -30,26 +30,26 @@ struct FutuConfig {
     std::string market = "HK";
 };
 
-// Futu交易所实现
+// Futu exchange implementation
 class FutuExchange : public IExchange {
     friend class FutuSpi;
 public:
     explicit FutuExchange(IEventEngine* event_engine, const FutuConfig& config);
     virtual ~FutuExchange();
     
-    // ========== 连接管理 ==========
+    // ========== Connection management ==========
     bool connect() override;
     bool disconnect() override;
     bool isConnected() const override;
     std::string getName() const override { return "futu"; }
     std::string getDisplayName() const override { return "Futu Securities"; }
     
-    // ========== 账户相关 ==========
+    // ========== Account related ==========
     AccountInfo getAccountInfo() override;
     std::vector<ExchangePosition> getPositions() override;
     double getAvailableFunds() override;
     
-    // ========== 交易相关 ==========
+    // ========== Trading related ==========
     std::string placeOrder(
         const std::string& symbol,
         const std::string& side,
@@ -63,7 +63,7 @@ public:
     OrderData getOrderStatus(const std::string& order_id) override;
     std::vector<OrderData> getOrderHistory(int days = 1) override;
     
-    // ========== 行情数据相关 ==========
+    // ========== Market data related ==========
     bool subscribeKLine(const std::string& symbol, const std::string& kline_type) override;
     bool unsubscribeKLine(const std::string& symbol) override;
     bool subscribeTick(const std::string& symbol) override;
@@ -77,29 +77,29 @@ public:
     
     Snapshot getSnapshot(const std::string& symbol) override;
     
-    // ========== 市场扫描相关 ==========
+    // ========== Market scanning related ==========
     std::vector<std::string> getMarketStockList() override;
     std::map<std::string, Snapshot> getBatchSnapshots(const std::vector<std::string>& stock_codes) override;
     
-    // ========== 事件引擎 ==========
+    // ========== Event engine ==========
     IEventEngine* getEventEngine() const override { return event_engine_; }
 
 protected:
-    // 辅助方法：通过事件引擎发布日志
+    // Helper: publish logs via event engine
     void writeLog(LogLevel level, const std::string& message);
 
 private:
     FutuConfig config_;
     bool connected_;
     mutable std::mutex mutex_;
-    IEventEngine* event_engine_ = nullptr;  // 事件引擎指针
+    IEventEngine* event_engine_ = nullptr;  // pointer to event engine
     
     #ifdef ENABLE_FUTU
-    FutuSpi* spi_ = nullptr;              // 回调处理和API管理
-    std::vector<uint64_t> account_ids_;   // 账户列表
+    FutuSpi* spi_ = nullptr;              // callback handler and API manager
+    std::vector<uint64_t> account_ids_;   // account list
     #endif
     
-    // Futu API 相关内部方法
+    // Futu API related internal methods
     bool unlockTrade();
     bool getAccountList();
     

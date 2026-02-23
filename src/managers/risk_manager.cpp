@@ -22,20 +22,20 @@ bool RiskManager::checkOrderRisk(const std::string& symbol, int quantity, double
     const auto& config = ConfigManager::getInstance().getConfig();
     auto& pos_mgr = PositionManager::getInstance();
     
-    // 检查每日亏损限制
+    // Check daily loss limit
     if (metrics_.daily_pnl_ratio < -config.risk.max_daily_loss) {
         LOG_WARN("Daily loss limit reached, order rejected");
         return false;
     }
     
-    // 检查持仓数量
+    // Check position count
     if (!pos_mgr.hasPosition(symbol) && 
         pos_mgr.getTotalPositions() >= config.trading.max_positions) {
         LOG_WARN("Max positions limit reached, order rejected");
         return false;
     }
     
-    // 检查单只股票占比
+    // Check single stock ratio
     double order_value = std::abs(quantity * price);
     double total_value = pos_mgr.getTotalMarketValue() + order_value;
     double ratio = order_value / total_value;
@@ -48,7 +48,7 @@ bool RiskManager::checkOrderRisk(const std::string& symbol, int quantity, double
         return false;
     }
     
-    // 检查资金充足性
+    // Check available capital
     if (order_value > current_capital_ * 0.95) {
         LOG_WARN("Insufficient capital, order rejected");
         return false;
@@ -101,10 +101,10 @@ int RiskManager::calculatePositionSize(double stock_price, double available_cash
     const auto& config = ConfigManager::getInstance().getConfig();
     auto& pos_mgr = PositionManager::getInstance();
     
-    // 计算可用于单只股票的最大金额
+    // Calculate max amount for single stock
     double max_stock_value = config.trading.max_position_size * config.trading.single_stock_max_ratio;
     
-    // 考虑当前总持仓
+    // Consider current total positions
     double current_total = pos_mgr.getTotalMarketValue();
     double remaining = config.trading.max_position_size - current_total;
     
@@ -112,9 +112,9 @@ int RiskManager::calculatePositionSize(double stock_price, double available_cash
     
     if (max_value <= 0 || stock_price <= 0) return 0;
     
-    // 计算股数（整手，港股最小100股）
+    // Calculate shares (full lots, minimum 100 shares for HK stocks)
     int shares = static_cast<int>(max_value / stock_price);
-    shares = (shares / 100) * 100;  // 向下取整到100的倍数
+    shares = (shares / 100) * 100;  // Round down to multiple of 100
     
     return shares;
 }

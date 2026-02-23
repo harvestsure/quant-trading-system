@@ -6,73 +6,73 @@
 #include <string>
 
 /**
- * @brief 通知管理器，负责初始化和管理所有通知发送器
+ * @brief Notification manager responsible for initializing and managing all notification senders
  */
 class NotificationManager {
 public:
     /**
-     * @brief 获取单例实例
+     * @brief Get singleton instance
      */
     static NotificationManager& getInstance();
     
     /**
-     * @brief 从配置初始化通知系统
-     * @param config 交易配置
+     * @brief Initialize notification system from configuration
+     * @param config trading configuration
      * @return true if initialization successful
      */
     bool initialize(const TradingConfig& config);
     
     /**
-     * @brief 初始化（从默认配置文件读取）
+     * @brief Initialize (reads from default config file)
      */
     bool initialize();
     
     /**
-     * @brief 关闭通知系统
+     * @brief Shutdown notification system
      */
     void shutdown();
     
     /**
-     * @brief 获取通知队列实例
+     * @brief Get notification queue instance
      */
     NotificationQueue& getQueue() { return NotificationQueue::getInstance(); }
     
     /**
-     * @brief 发送交易信号消息
+     * @brief Send trade signal message
      */
     bool sendTradeSignal(const std::string& message) {
         return NotificationQueue::getInstance().sendMessage(message, "trade_signal");
     }
     
     /**
-     * @brief 发送交易执行消息
+     * @brief Send trade execution message
      */
     bool sendTradeExecution(const std::string& message) {
         return NotificationQueue::getInstance().sendMessage(message, "trade");
     }
     
     /**
-     * @brief 发送错误消息
+     * @brief Send error message
      */
     bool sendError(const std::string& message) {
         return NotificationQueue::getInstance().sendMessage(message, "error");
     }
     
     /**
-     * @brief 发送信息消息
+     * @brief Send info message
      */
     bool sendInfo(const std::string& message) {
         return NotificationQueue::getInstance().sendMessage(message, "info");
     }
     
     /**
-     * @brief 等待所有消息发送完成（用于优雅关闭）
+     * @brief Wait for all messages to be sent (for graceful shutdown)
      */
     bool waitUntilEmpty(int timeout_seconds = 10) {
         return NotificationQueue::getInstance().waitUntilEmpty(timeout_seconds);
     }
     
-    // 禁止拷贝和移动
+    // Non-copyable and non-movable
     NotificationManager(const NotificationManager&) = delete;
     NotificationManager& operator=(const NotificationManager&) = delete;
     NotificationManager(NotificationManager&&) = delete;

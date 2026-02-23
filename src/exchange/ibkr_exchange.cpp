@@ -17,7 +17,7 @@ IBKRExchange::~IBKRExchange() {
     disconnect();
 }
 
-// ========== 连接管理 ==========
+// ========== Connection management ==========
 
 bool IBKRExchange::connect() {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -32,7 +32,7 @@ bool IBKRExchange::connect() {
        << " (Client ID: " << config_.client_id << ")";
     LOG_INFO(ss.str());
     
-    // TODO: 实现TWS API连接逻辑
+    // TODO: Implement TWS API connection logic
     /*
     try {
         wrapper_ = new IBKRWrapper();
@@ -49,7 +49,7 @@ bool IBKRExchange::connect() {
             return false;
         }
         
-        // 启动消息处理线程
+        // Start message processing thread
         reader_thread_ = std::thread(&IBKRExchange::readerThread, this);
         
         connected_ = true;
@@ -63,7 +63,7 @@ bool IBKRExchange::connect() {
     }
     */
     
-    // 模拟连接成功
+    // Simulate successful connection
     connected_ = true;
     LOG_INFO("IBKR Exchange connected (simulated)");
     return true;
@@ -78,7 +78,7 @@ bool IBKRExchange::disconnect() {
     
     LOG_INFO("Disconnecting from IBKR TWS");
     
-    // TODO: 实现TWS API断开逻辑
+    // TODO: Implement TWS API disconnect logic
     /*
     if (client_socket_) {
         client_socket_->eDisconnect();
@@ -102,12 +102,12 @@ bool IBKRExchange::isConnected() const {
     return connected_;
 }
 
-// ========== 市场数据订阅 ==========
+// ========== Market data subscription ==========
 
 bool IBKRExchange::subscribeKLine(const std::string& symbol, const std::string& period) {
     LOG_INFO("Subscribe IBKR KLine: " + symbol + " " + period);
     
-    // TODO: 使用TWS API订阅Bar数据
+    // TODO: Use TWS API to subscribe to Bar data
     /*
     Contract contract;
     contract.symbol = symbol;
@@ -131,7 +131,7 @@ bool IBKRExchange::subscribeKLine(const std::string& symbol, const std::string& 
 bool IBKRExchange::unsubscribeKLine(const std::string& symbol) {
     LOG_INFO("Unsubscribe IBKR KLine: " + symbol);
     
-    // TODO: 取消订阅
+    // TODO: Unsubscribe
     // client_socket_->cancelRealTimeBars(req_id);
     
     return true;
@@ -140,7 +140,7 @@ bool IBKRExchange::unsubscribeKLine(const std::string& symbol) {
 bool IBKRExchange::subscribeTick(const std::string& symbol) {
     LOG_INFO("Subscribe IBKR Tick: " + symbol);
     
-    // TODO: 使用TWS API订阅市场数据
+    // TODO: Use TWS API to subscribe to market data
     /*
     Contract contract;
     contract.symbol = symbol;
@@ -157,13 +157,13 @@ bool IBKRExchange::subscribeTick(const std::string& symbol) {
 bool IBKRExchange::unsubscribeTick(const std::string& symbol) {
     LOG_INFO("Unsubscribe IBKR Tick: " + symbol);
     
-    // TODO: 取消订阅
+    // TODO: Unsubscribe
     // client_socket_->cancelMktData(req_id);
     
     return true;
 }
 
-// ========== 历史数据获取 ==========
+// ========== Historical data retrieval ==========
 
 std::vector<KlineData> IBKRExchange::getHistoryKLine(
     const std::string& symbol,
@@ -172,7 +172,7 @@ std::vector<KlineData> IBKRExchange::getHistoryKLine(
     
     LOG_INFO("Get IBKR history KLine: " + symbol);
     
-    // TODO: 实现历史数据获取
+    // TODO: Implement historical data retrieval
     /*
     Contract contract;
     contract.symbol = symbol;
@@ -200,12 +200,11 @@ std::vector<KlineData> IBKRExchange::getHistoryKLine(
     return {};
 }
 
-// ========== 行情快照 ==========
+// ========== Market snapshot ==========
 
 Snapshot IBKRExchange::getSnapshot(const std::string& symbol) {
     LOG_INFO("Get IBKR snapshot: " + symbol);
     
-    // TODO: 实现快照获取
     Snapshot snapshot;
     snapshot.symbol = symbol;
     return snapshot;
@@ -221,7 +220,7 @@ std::vector<Snapshot> IBKRExchange::getMarketSnapshot(const std::vector<std::str
     return snapshots;
 }
 
-// ========== 交易接口 ==========
+// ========== Trade interface ==========
 
 std::string IBKRExchange::placeOrder(
     const std::string& symbol,
@@ -234,7 +233,7 @@ std::string IBKRExchange::placeOrder(
        << " " << order_type << " " << quantity;
     LOG_INFO(ss.str());
     
-    // TODO: 实现下单逻辑
+    // TODO: Implement order placement logic
     /*
     Contract contract;
     contract.symbol = symbol;
@@ -256,7 +255,7 @@ std::string IBKRExchange::placeOrder(
     return std::to_string(order_id);
     */
     
-    // 模拟返回订单ID
+    // Simulate returning order ID
     static int mock_order_id = 10000;
     return "IBKR_" + std::to_string(++mock_order_id);
 }
@@ -264,7 +263,7 @@ std::string IBKRExchange::placeOrder(
 bool IBKRExchange::cancelOrder(const std::string& order_id) {
     LOG_INFO("Cancel IBKR order: " + order_id);
     
-    // TODO: 实现撤单逻辑
+    // TODO: Implement cancel order logic
     // client_socket_->cancelOrder(std::stoi(order_id));
     
     return true;
@@ -275,12 +274,12 @@ bool IBKRExchange::modifyOrder(const std::string& order_id, int new_quantity, do
     ss << "Modify IBKR order: " << order_id << " price=" << price << " qty=" << quantity;
     LOG_INFO(ss.str());
     
-    // TODO: 实现改单逻辑（需要重新下单）
+    // TODO: Implement modify order logic (may require re-order)
     
     return true;
 }
 
-// ========== 订单查询 ==========
+// ========== Order queries ==========
 
 OrderData IBKRExchange::getOrderStatus(const std::string& order_id) {
     LOG_INFO("Get IBKR order: " + order_id);
@@ -293,29 +292,29 @@ OrderData IBKRExchange::getOrderStatus(const std::string& order_id) {
 std::vector<OrderData> IBKRExchange::getOrderHistory(int days) {
     LOG_INFO("Get IBKR order history");
     
-    // TODO: 查询订单历史
+    // TODO: Query order history
     // client_socket_->reqAllOpenOrders();
     
     return {};
 }
 
-// ========== 持仓查询 ==========
+// ========== Position queries ==========
 
 std::vector<ExchangePosition> IBKRExchange::getPositions() {
     LOG_INFO("Get IBKR positions");
     
-    // TODO: 查询持仓
+    // TODO: Query positions
     // client_socket_->reqPositions();
     
     return {};
 }
 
-// ========== 账户查询 ==========
+// ========== Account queries ==========
 
 AccountInfo IBKRExchange::getAccountInfo() {
     LOG_INFO("Get IBKR account info");
     
-    // TODO: 查询账户信息
+    // TODO: Query account info
     // client_socket_->reqAccountSummary(req_id, "All", "$LEDGER");
     
     AccountInfo info;
@@ -335,42 +334,42 @@ double IBKRExchange::getAvailableFunds() {
 
 std::vector<std::string> IBKRExchange::getMarketStockList() {
     LOG_INFO("Get IBKR market stock list");
-    // TODO: 实现市场股票列表获取
+    // TODO: Implement market stock list retrieval
     std::vector<std::string> result;
     return result;
 }
 
 std::map<std::string, Snapshot> IBKRExchange::getBatchSnapshots(const std::vector<std::string>& stock_codes) {
     LOG_INFO("Get IBKR batch snapshots");
-    // TODO: 实现批量快照获取
+    // TODO: Implement batch snapshot retrieval
     std::map<std::string, Snapshot> result;
     return result;
 }
 
-// ========== 数据转换方法 ==========
+// ========== Data conversion methods ==========
 
 OrderData IBKRExchange::convertIBKROrder(const void* ibkr_order) {
-    // TODO: 转换IBKR订单数据
+    // TODO: Convert IBKR order data
     OrderData order;
     return order;
 }
 
 Snapshot IBKRExchange::convertIBKRSnapshot(const void* ibkr_snapshot) {
-    // TODO: 转换IBKR快照数据
+    // TODO: Convert IBKR snapshot data
     Snapshot snapshot;
     return snapshot;
 }
 
 ExchangePosition IBKRExchange::convertIBKRPosition(const void* ibkr_position) {
-    // TODO: 转换IBKR持仓数据
+    // TODO: Convert IBKR position data
     ExchangePosition position;
     return position;
 }
 
-// ========== 事件发布方法 ==========
+// ========== Event publish methods ==========
 
 void IBKRExchange::publishTickEvent(const std::string& symbol, const void* ibkr_tick) {
-    // TODO: 将IBKR Tick数据转换为统一格式并发布
+    // TODO: Convert IBKR Tick data to unified format and publish
     TickData tick_data;
     tick_data.symbol = symbol;
     tick_data.exchange = "IBKR";
@@ -380,7 +379,7 @@ void IBKRExchange::publishTickEvent(const std::string& symbol, const void* ibkr_
 }
 
 void IBKRExchange::publishKLineEvent(const std::string& symbol, const void* ibkr_bar) {
-    // TODO: 将IBKR Bar数据转换为统一格式并发布
+    // TODO: Convert IBKR Bar data to unified format and publish
     KlineData kline_data;
     kline_data.symbol = symbol;
     kline_data.exchange = "IBKR";
@@ -400,7 +399,7 @@ void IBKRExchange::publishOrderEvent(const OrderData& order) {
 }
 
 void IBKRExchange::publishTradeEvent(const void* ibkr_execution) {
-    // TODO: 将IBKR执行数据转换为统一格式并发布
+    // TODO: Convert IBKR execution data to unified format and publish
     TradeData trade_data;
     trade_data.exchange = "IBKR";
     
@@ -409,7 +408,7 @@ void IBKRExchange::publishTradeEvent(const void* ibkr_execution) {
 
 }
 
-// ========== 事件引擎 ==========
+// ========== Event engine ==========
 
 void IBKRExchange::setEventEngine(IEventEngine* event_engine) {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -423,7 +422,7 @@ void IBKRExchange::writeLog(LogLevel level, const std::string& message) {
         ).count();
 
     if (event_engine_) {
-        // 通过事件引擎发布日志
+        // Publish logs via event engine
         LogData log_data;
         log_data.level = level;
         log_data.message = "[IBKRExchange] " + message;
@@ -436,7 +435,7 @@ void IBKRExchange::writeLog(LogLevel level, const std::string& message) {
 
         auto strLevel = levelToString(level);
 
-        // 回退到直接使用 Logger
+        // Fallback to direct Logger
         switch (level) {
             case LogLevel::Debug:
             case LogLevel::Info:

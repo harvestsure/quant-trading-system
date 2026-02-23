@@ -1,210 +1,210 @@
-# 量化交易系统
+# Quantitative Trading System
 
-一个基于C++的多交易所量化交易系统，支持Futu、IBKR、Binance等多个交易平台，支持实盘和模拟盘交易，实现追涨杀跌策略。
+A C++ based multi-exchange quantitative trading system supporting Futu, IBKR, Binance and other trading platforms with both live and paper trading modes, implementing momentum chasing strategies.
 
-## 快速开始
+## Quick Start
 
-### 1. 快速编译（推荐新手）
+### 1. Quick Build (Recommended for Beginners)
 
-最简单的编译方式，使用默认配置：
+The simplest build method using default configuration:
 
 ```bash
 ./build.sh
 ```
 
-这将编译 Release 版本，Futu 交易所从源码编译（自动适配 ARM64 或 x86_64）。
+This will build a Release version with Futu exchange compiled from source (automatically adapts to ARM64 or x86_64).
 
-### 2. 开发模式（Debug 编译）
+### 2. Development Mode (Debug Build)
 
 ```bash
 ./build.sh --debug
 ```
 
-### 3. 使用预编译库（更快的编译速度）
+### 3. Using Prebuilt Libraries (Faster Compilation)
 
-**使用 ARM64 预编译库（推荐 Apple Silicon Mac）：**
+**Using ARM64 Prebuilt Libraries (Recommended for Apple Silicon Mac):**
 
 ```bash
-# 第一步：预编译 ARM64 库（只需执行一次）
+# Step 1: Precompile ARM64 libraries (only need to run once)
 ./build_ftapi_arm64.sh both
 
-# 第二步：编译项目
+# Step 2: Build the project
 ./build.sh --use-prebuilt-arm64 --release
 ```
 
-**使用 x86_64 预编译库（兼容所有 Mac）：**
+**Using x86_64 Prebuilt Libraries (Compatible with all Macs):**
 
 ```bash
 ./build.sh --use-prebuilt-x86
 ```
 
-### 4. 运行系统
+### 4. Run the System
 
 ```bash
 ./build/quant-trading-system config.json
 ```
 
-## 编译选项
+## Build Options
 
-### 基本选项
+### Basic Options
 ```bash
-./build.sh [选项]
+./build.sh [options]
 
-交易所选项：
-  --enable-futu              启用 Futu 交易所（默认）
-  --disable-futu             禁用 Futu 交易所
-  --enable-ibkr              启用 IBKR 交易所
-  --enable-binance           启用 Binance 交易所
+Exchange Options:
+  --enable-futu              Enable Futu exchange (default)
+  --disable-futu             Disable Futu exchange
+  --enable-ibkr              Enable IBKR exchange
+  --enable-binance           Enable Binance exchange
 
-构建类型：
-  --debug                    Debug 编译（包含调试符号）
-  --release                  Release 编译（优化版本，默认）
+Build Type:
+  --debug                    Debug build (with debug symbols)
+  --release                  Release build (optimized version, default)
 
-FTAPI 编译模式（仅 Futu）：
-  --from-source              从源码编译（默认，原生性能）
-  --use-prebuilt-x86         使用 x86_64 预编译库
-  --use-prebuilt-arm64       使用 ARM64 预编译库
+FTAPI Build Mode (Futu only):
+  --from-source              Build from source (default, native performance)
+  --use-prebuilt-x86         Use x86_64 prebuilt libraries
+  --use-prebuilt-arm64       Use ARM64 prebuilt libraries
 
-其他：
-  --ftapi-home <path>        指定 FTAPI4CPP SDK 路径
-  --help                     显示帮助信息
+Other:
+  --ftapi-home <path>        Specify FTAPI4CPP SDK path
+  --help                     Show help information
 ```
 
-### 常用编译命令示例
+### Common Build Command Examples
 
 ```bash
-# 默认编译（Release，从源码）
+# Default build (Release, from source)
 ./build.sh
 
-# Debug 编译
+# Debug build
 ./build.sh --debug
 
-# 使用 ARM64 预编译库（最快）
-./build_ftapi_arm64.sh both  # 只需执行一次
+# Using ARM64 prebuilt libraries (fastest)
+./build_ftapi_arm64.sh both  # only need to run once
 ./build.sh --use-prebuilt-arm64 --release
 
-# 指定 FTAPI 路径
+# Specify FTAPI path
 ./build.sh --ftapi-home /path/to/FTAPI4CPP_<version>
 
-# 启用多个交易所
+# Enable multiple exchanges
 ./build.sh --enable-ibkr --debug
 
-# 使用环境变量
+# Using environment variables
 export FTAPI_HOME=/path/FTAPI4CPP_<version>
 ./build.sh --use-prebuilt-arm64
 ```
 
-## 编译模式对比
+## Build Mode Comparison
 
-| 模式 | 命令 | 编译时间 | 性能 | 适用场景 |
-|------|------|----------|------|----------|
-| 从源码 | `./build.sh` | 2-3分钟 | ⭐⭐⭐⭐⭐ | 开发、调试 |
-| ARM64预编译 | `./build.sh --use-prebuilt-arm64` | 30秒 | ⭐⭐⭐⭐⭐ | 生产部署（Apple Silicon） |
-| x86_64预编译 | `./build.sh --use-prebuilt-x86` | 30秒 | ⭐⭐⭐⭐ | 快速测试、Intel Mac |
+| Mode | Command | Build Time | Performance | Use Case |
+|------|---------|------------|-------------|----------|
+| From Source | `./build.sh` | 2-3 minutes | ⭐⭐⭐⭐⭐ | Development, debugging |
+| ARM64 Prebuilt | `./build.sh --use-prebuilt-arm64` | 30 seconds | ⭐⭐⭐⭐⭐ | Production deployment (Apple Silicon) |
+| x86_64 Prebuilt | `./build.sh --use-prebuilt-x86` | 30 seconds | ⭐⭐⭐⭐ | Quick testing, Intel Mac |
 
-## 功能特性
+## Features
 
-- ✅ **多交易所支持**：支持Futu、IBKR、Binance等多个交易平台
-- ✅ **双模式交易**：支持实盘和模拟盘交易
-- ✅ **市场扫描**：定时扫描市场，筛选符合条件的交易机会
-- ✅ **策略系统**：灵活的策略管理器，支持多种策略并行运行
-- ✅ **配置管理**：JSON配置文件，支持多个交易所配置
-- ✅ **数据订阅**：实时订阅K线和Ticker数据
-- ✅ **持仓管理**：自动跟踪和管理所有持仓状态
-- ✅ **风险控制**：完善的风险管理系统，包括止损、止盈、追踪止损、仓位控制
+- ✅ **Multi-Exchange Support**: Support for Futu, IBKR, Binance and other trading platforms
+- ✅ **Dual-Mode Trading**: Support for both live and paper trading
+- ✅ **Market Scanning**: Periodic market scans to identify trading opportunities
+- ✅ **Strategy System**: Flexible strategy manager supporting multiple concurrent strategies
+- ✅ **Configuration Management**: JSON configuration files supporting multiple exchange configs
+- ✅ **Data Subscription**: Real-time subscription to K-line and ticker data
+- ✅ **Position Management**: Automatic tracking and management of all positions
+- ✅ **Risk Control**: Comprehensive risk management system including stop-loss, take-profit, trailing stop-loss, and position sizing
 
-## 详细文档
+## Documentation
 
-- 📖 [BUILD_GUIDE.md](BUILD_GUIDE.md) - 完整构建指南（详细说明所有编译选项）
-- 📖 [docs/BUILD_OPTIONS.md](docs/BUILD_OPTIONS.md) - 编译选项快速参考
-- 📖 [docs/DYNAMIC_STRATEGY_MANAGEMENT.md](docs/DYNAMIC_STRATEGY_MANAGEMENT.md) - 动态策略管理
-- 📖 [docs/EVENT_DRIVEN_ARCHITECTURE.md](docs/EVENT_DRIVEN_ARCHITECTURE.md) - 事件驱动架构
-- 📖 [docs/EXCHANGE_ABSTRACTION.md](docs/EXCHANGE_ABSTRACTION.md) - 交易所抽象层
-- 📖 [docs/EXCHANGE_BUILD_OPTIONS.md](docs/EXCHANGE_BUILD_OPTIONS.md) - 交易所编译选项
-- 📖 [docs/JSON_CONFIGURATION.md](docs/JSON_CONFIGURATION.md) - JSON 配置说明
+- 📖 [BUILD_GUIDE.md](BUILD_GUIDE.md) - Complete build guide (detailed explanation of all build options)
+- 📖 [docs/BUILD_OPTIONS.md](docs/BUILD_OPTIONS.md) - Build options quick reference
+- 📖 [docs/DYNAMIC_STRATEGY_MANAGEMENT.md](docs/DYNAMIC_STRATEGY_MANAGEMENT.md) - Dynamic strategy management
+- 📖 [docs/EVENT_DRIVEN_ARCHITECTURE.md](docs/EVENT_DRIVEN_ARCHITECTURE.md) - Event-driven architecture
+- 📖 [docs/EXCHANGE_ABSTRACTION.md](docs/EXCHANGE_ABSTRACTION.md) - Exchange abstraction layer
+- 📖 [docs/EXCHANGE_BUILD_OPTIONS.md](docs/EXCHANGE_BUILD_OPTIONS.md) - Exchange build options
+- 📖 [docs/JSON_CONFIGURATION.md](docs/JSON_CONFIGURATION.md) - JSON configuration guide
 
-## 常见问题
+## FAQ
 
-### Q: 找不到 FTAPI SDK
+### Q: Cannot find FTAPI SDK
 ```bash
-# 方式 1: 使用参数指定
+# Method 1: Use parameter
 ./build.sh --ftapi-home /path/FTAPI4CPP_<version>
 
-# 方式 2: 使用环境变量
+# Method 2: Use environment variable
 export FTAPI_HOME=/path/FTAPI4CPP_<version>
 ./build.sh
 ```
 
-## 系统架构
+## System Architecture
 
 ```
 quant-trading-system/
-├── include/               # 头文件
-│   ├── config/           # 配置管理
-│   ├── managers/         # 核心管理器
-│   ├── scanner/          # 市场扫描器
-│   ├── data/             # 数据订阅
-│   ├── trading/          # 交易执行
-│   ├── strategies/       # 交易策略
-│   └── utils/            # 工具类
-├── src/                  # 源文件
-├── config.json            # 配置文件
-└── CMakeLists.txt        # 构建配置
+├── include/               # Header files
+│   ├── config/           # Configuration management
+│   ├── managers/         # Core managers
+│   ├── scanner/          # Market scanner
+│   ├── data/             # Data subscription
+│   ├── trading/          # Trade execution
+│   ├── strategies/       # Trading strategies
+│   └── utils/            # Utility classes
+├── src/                  # Source files
+├── config.json            # Configuration file
+└── CMakeLists.txt        # Build configuration
 ```
 
-### 核心模块
+### Core Modules
 
-1. **ConfigManager**：配置管理器，从文件读取所有配置
-2. **PositionManager**：持仓管理器，跟踪所有持仓状态
-3. **RiskManager**：风险管理器，控制风险和仓位
-4. **StrategyManager**：策略管理器，管理多个策略实例
-5. **MarketScanner**：市场扫描器，定时扫描市场寻找机会
-6. **DataSubscriber**：数据订阅器，订阅实时行情数据
-7. **OrderExecutor**：订单执行器，处理下单和订单管理
+1. **ConfigManager**: Configuration manager, reads all configs from file
+2. **PositionManager**: Position manager, tracks all position states
+3. **RiskManager**: Risk manager, controls risk and position sizing
+4. **StrategyManager**: Strategy manager, manages multiple strategy instances
+5. **MarketScanner**: Market scanner, periodically scans market for opportunities
+6. **DataSubscriber**: Data subscriber, subscribes to real-time market data
+7. **OrderExecutor**: Order executor, handles order placement and management
 
-## 编译和安装
+## Build and Installation
 
-### 前置要求
+### Prerequisites
 
-- C++17或更高版本
-- CMake 3.15或更高版本
-- `nlohmann/json`（项目使用 git 子模块存放在 `libraries/json`，CMake 会优先使用该子模块）
-- 根据使用的交易所选择对应的API库：
-  - **Futu**：FTAPI4CPP（需要单独下载配置）
-  - **IBKR**：Interactive Brokers TWS API
-  - **Binance**：Binance 官方API（需要API Key和Secret）
+- C++17 or higher
+- CMake 3.15 or higher
+- `nlohmann/json` (project uses git submodule stored in `libraries/json`, CMake will use this submodule first)
+- Choose the corresponding API library based on the exchange used:
+  - **Futu**: FTAPI4CPP (needs to be downloaded and configured separately)
+  - **IBKR**: Interactive Brokers TWS API
+  - **Binance**: Official Binance API (requires API Key and Secret)
 
-### 获取依赖（git 子模块）
+### Get Dependencies (Git Submodule)
 
-项目现在使用 `nlohmann/json` 作为子模块（位于 `libraries/json`）。第一次检出仓库后执行：
+The project now uses `nlohmann/json` as a submodule (located in `libraries/json`). After first checkout, execute:
 
 ```bash
 git submodule update --init --recursive
 ```
 
-如果你还没有添加子模块（手工操作），可以运行：
+If you haven't added the submodule yet, run:
 
 ```bash
 git submodule add https://github.com/nlohmann/json.git libraries/json
 git submodule update --init --recursive
 ```
 
-### 配置 Futu API（FTAPI4CPP）
+### Configure Futu API (FTAPI4CPP)
 
-如果需要启用 Futu 交易所支持，需要先配置 FTAPI4CPP 库。
+If Futu exchange support is needed, FTAPI4CPP library needs to be configured first.
 
-#### 第一步：获取 FTAPI4CPP
+#### Step 1: Get FTAPI4CPP
 
-从 Futu 官网下载 FTAPI4CPP（例如版本 <version> 或其他版本），解压到本地目录，目录结构应该如下：
+Download FTAPI4CPP from Futu's official website (e.g., version <version> or others), extract to a local directory. Directory structure should be:
 
 ```
 FTAPI4CPP_<version>/
-├── Include/          # 头文件目录
+├── Include/          # Header files directory
 │   ├── FTAPI.h
 │   ├── FTSPI.h
 │   ├── FTAPIChannel.h
 │   └── ...
-└── Bin/              # 库文件目录
+└── Bin/              # Library files directory
     ├── Mac/
     │   ├── Release/
     │   │   ├── libFTAPI.a
@@ -216,229 +216,229 @@ FTAPI4CPP_<version>/
     └── ...
 ```
 
-#### 第二步：编译时指定 FTAPI_HOME
+#### Step 2: Specify FTAPI_HOME During Build
 
-有 **3 种方式** 配置 FTAPI 路径：
+There are **3 ways** to configure the FTAPI path:
 
-**方式一：命令行参数（推荐）**
+**Method 1: Command line parameter (Recommended)**
 
 ```bash
 chmod +x build.sh
 ./build.sh --ftapi-home /path/to/FTAPI4CPP_<version> --debug
 ```
 
-**方式二：环境变量**
+**Method 2: Environment variable**
 
 ```bash
 export FTAPI_HOME=/path/to/FTAPI4CPP_<version>
 ./build.sh --debug
 ```
 
-**方式三：CMake 直接调用**
+**Method 3: Direct CMake call**
 
 ```bash
 mkdir -p build
 cd build
 cmake -DFTAPI_HOME=/path/to/FTAPI4CPP_<version> -DCMAKE_BUILD_TYPE=Release ..
-make -j$(nproc)  # macOS 使用：make -j$(sysctl -n hw.ncpu)
+make -j$(nproc)  # macOS: use make -j$(sysctl -n hw.ncpu)
 ```
 
-### 编译步骤
+### Build Steps
 
-#### 使用构建脚本（推荐）
+#### Using Build Script (Recommended)
 
 ```bash
-# 启用 Futu 交易所，Release 模式
+# Enable Futu exchange, Release mode
 ./build.sh --ftapi-home /path/to/FTAPI4CPP_<version>
 
-# 启用 Futu 交易所，Debug 模式
+# Enable Futu exchange, Debug mode
 ./build.sh --ftapi-home /path/to/FTAPI4CPP_<version> --debug
 
-# 禁用 Futu，启用 IBKR
+# Disable Futu, enable IBKR
 ./build.sh --disable-futu --enable-ibkr
 
-# 查看所有可用选项
+# View all available options
 ./build.sh --help
 ```
 
-#### 手动编译
+#### Manual Build
 
 ```bash
 mkdir -p build
 cd build
 cmake -DFTAPI_HOME=/path/to/FTAPI4CPP_<version> -DCMAKE_BUILD_TYPE=Release ..
 make -j$(sysctl -n hw.ncpu)  # macOS
-# 或
+# or
 make -j$(nproc)  # Linux
 ```
 
-#### 构建脚本参数说明
+#### Build Script Parameter Explanation
 
 ```
-选项说明:
-  --enable-futu              启用 Futu 交易所支持（默认：ON）
-  --disable-futu             禁用 Futu 交易所支持
-  --enable-ibkr              启用 IBKR 交易所支持（默认：OFF）
-  --enable-binance           启用 Binance 交易所支持（默认：OFF）
-  --ftapi-home <path>        指定 FTAPI4CPP 主目录
-  --debug                    Debug 模式编译
-  --release                  Release 模式编译（默认）
-  --help                     显示帮助信息
+Parameter Explanation:
+  --enable-futu              Enable Futu exchange support (default: ON)
+  --disable-futu             Disable Futu exchange support
+  --enable-ibkr              Enable IBKR exchange support (default: OFF)
+  --enable-binance           Enable Binance exchange support (default: OFF)
+  --ftapi-home <path>        Specify FTAPI4CPP main directory
+  --debug                    Build in Debug mode
+  --release                  Build in Release mode (default)
+  --help                     Show help information
 ```
 
-## 配置说明
+## Configuration Guide
 
-编辑 `config.json` 文件配置系统参数。系统采用JSON格式配置，支持多个交易所：
+Edit the `config.json` file to configure system parameters. The system uses JSON format configuration supporting multiple exchanges:
 
-### 基础配置
+### Basic Configuration
 
 ```json
 {
   "exchange": {
-    "type": "FUTU",           // 交易所类型：FUTU、IBKR、BINANCE
-    "is_simulation": true      // true=模拟盘, false=实盘
+    "type": "FUTU",           // Exchange type: FUTU, IBKR, BINANCE
+    "is_simulation": true      // true=paper trading, false=live trading
   }
 }
 ```
 
-### 交易所连接配置
+### Exchange connection configuration
 
-**Futu配置**：
+**Futu configuration**:
 ```json
 "futu": {
-  "host": "127.0.0.1",        // OpenD服务器地址
-  "port": 11111,               // OpenD端口
-  "unlock_password": "",       // 解锁密码（可选）
-  "market": "HK"               // 市场代码：HK、US等
+  "host": "127.0.0.1",        // OpenD server address
+  "port": 11111,               // OpenD port
+  "unlock_password": "",       // Unlock password (optional)
+  "market": "HK"               // Market code: HK, US, etc.
 }
 ```
 
-**IBKR配置**：
+**IBKR configuration**:
 ```json
 "ibkr": {
-  "host": "127.0.0.1",        // TWS服务器地址
-  "port": 7496,                // TWS端口
-  "client_id": 0,              // 客户端ID
-  "account": ""                // 账户ID
+  "host": "127.0.0.1",        // TWS server address
+  "port": 7496,                // TWS port
+  "client_id": 0,              // Client ID
+  "account": ""                // Account ID
 }
 ```
 
-**Binance配置**：
+**Binance configuration**:
 ```json
 "binance": {
   "api_key": "",              // API Key
   "api_secret": "",           // API Secret
-  "testnet": true              // true=测试网, false=正式网
+  "testnet": true              // true=testnet, false=mainnet
 }
 ```
 
-### 资金管理
+### Position and Risk Management
 
 ```json
 "trading": {
-  "max_position_size": 100000.0,    // 最大持仓金额
-  "single_stock_max_ratio": 0.2,    // 单只股票最大占比20%
-  "max_positions": 10               // 最多同时持仓数量
+  "max_position_size": 100000.0,    // Maximum position size
+  "single_stock_max_ratio": 0.2,    // Maximum ratio per stock (20%)
+  "max_positions": 10               // Maximum number of concurrent positions
 }
 ```
 
-### 市场扫描参数
+### Market Scanning Parameters
 
 ```json
 "scanner": {
-  "interval_minutes": 5,       // 扫描间隔（分钟）
-  "min_price": 1.0,            // 最低价格
-  "max_price": 1000.0,         // 最高价格
-  "min_volume": 1000000,       // 最小成交量
-  "min_turnover_rate": 0.01,   // 最小换手率
-  "top_n": 10                  // 返回前N个候选股票
+  "interval_minutes": 5,       // Scan interval (minutes)
+  "min_price": 1.0,            // Minimum price
+  "max_price": 1000.0,         // Maximum price
+  "min_volume": 1000000,       // Minimum trading volume
+  "min_turnover_rate": 0.01,   // Minimum turnover rate
+  "top_n": 10                  // Return top N candidates
 }
 ```
 
-### 风险管理
+### Risk Management
 
 ```json
 "risk": {
-  "stop_loss_ratio": 0.05,      // 止损比例5%
-  "take_profit_ratio": 0.15,    // 止盈比例15%
-  "max_daily_loss": 0.03,       // 每日最大亏损3%
-  "trailing_stop_ratio": 0.03,  // 追踪止损比例3%
-  "max_drawdown": 0.1           // 最大回撤限制10%
+  "stop_loss_ratio": 0.05,      // Stop loss ratio (5%)
+  "take_profit_ratio": 0.15,    // Take profit ratio (15%)
+  "max_daily_loss": 0.03,       // Maximum daily loss (3%)
+  "trailing_stop_ratio": 0.03,  // Trailing stop ratio (3%)
+  "max_drawdown": 0.1           // Maximum drawdown limit (10%)
 }
 ```
 
-### 策略参数
+### Strategy Parameters
 
 ```json
 "strategy": {
   "momentum": {
-    "enabled": true,           // 是否启用动量策略
-    "rsi_period": 14,          // RSI周期
-    "rsi_oversold": 30,        // RSI超卖阈值
-    "rsi_overbought": 70,      // RSI超买阈值
-    "ma_period": 20,           // 移动平均线周期
-    "volume_factor": 1.5       // 成交量系数
+    "enabled": true,           // Enable momentum strategy
+    "rsi_period": 14,          // RSI period
+    "rsi_oversold": 30,        // RSI oversold threshold
+    "rsi_overbought": 70,      // RSI overbought threshold
+    "ma_period": 20,           // Moving average period
+    "volume_factor": 1.5       // Volume factor
   }
 }
 ```
 
-### 日志配置
+### Logging Configuration
 
 ```json
 "logging": {
-  "level": "INFO",            // 日志级别：DEBUG、INFO、WARNING、ERROR
-  "console": true,             // 是否输出到控制台
-  "file": true,                // 是否输出到文件
-  "file_path": "logs/trading.log"  // 日志文件路径
+  "level": "INFO",            // Log level: DEBUG, INFO, WARNING, ERROR
+  "console": true,             // Output to console
+  "file": true,                // Output to file
+  "file_path": "logs/trading.log"  // Log file path
 }
 ```
 
-## 使用说明
+## Usage Guide
 
-### 1. 启动系统
+### 1. Start the System
 
 ```bash
 ./quant-trading-system config.json
 ```
 
-### 2. 系统工作流程
+### 2. System Workflow
 
-1. **启动**：系统加载配置，连接到选定的交易所（Futu/IBKR/Binance）
-2. **扫描**：定时扫描市场，筛选符合条件的交易机会
-3. **分析**：策略接收扫描结果，进行技术分析
-4. **交易**：满足条件时自动下单执行
-5. **监控**：实时监控持仓，触发止损/止盈/追踪止损时自动平仓
-6. **报告**：定期输出系统状态和持仓信息
+1. **Startup**: System loads configuration and connects to selected exchange (Futu/IBKR/Binance)
+2. **Scanning**: Periodically scans market and filters trading opportunities
+3. **Analysis**: Strategy receives scan results and performs technical analysis
+4. **Trading**: Automatically places orders when conditions are met
+5. **Monitoring**: Real-time monitoring of positions, auto-closing triggered by stop-loss/take-profit/trailing stop-loss
+6. **Reporting**: Periodically outputs system status and position information
 
-### 3. 停止系统
+### 3. Stop the System
 
-按 `Ctrl+C` 优雅退出系统。
+Press `Ctrl+C` to gracefully exit the system.
 
-## 策略说明
+## Strategy Description
 
-### 动量追涨策略 (MomentumStrategy)
+### Momentum Chasing Strategy (MomentumStrategy)
 
-**核心思想**：追踪强势上涨的股票，在趋势确认后买入。
+**Core idea**: Track strongly rising stocks and buy after trend confirmation.
 
-**入场条件**：
-- 股票处于上升趋势（价格在20日均线上方）
-- RSI在30-70之间（避免超买超卖）
-- 涨幅在2%-6%之间
-- 换手率大于2%（有足够流动性）
+**Entry conditions**:
+- Stock is in uptrend (price above 20-day MA)
+- RSI between 30-70 (avoid overbought/oversold)
+- Change between 2%-6%
+- Turnover rate > 2% (sufficient liquidity)
 
-**出场条件**：
-- 触发止损（亏损5%）
-- 触发止盈（盈利15%）
-- 趋势反转
+**Exit conditions**:
+- Trigger stop-loss (loss 5%)
+- Trigger take-profit (profit 15%)
+- Trend reversal
 
-**技术指标**：
-- RSI（相对强弱指标）
-- MA20（20日移动平均线）
-- 成交量分析
+**Technical indicators**:
+- RSI (Relative Strength Index)
+- MA20 (20-day moving average)
+- Volume analysis
 
-## 开发自定义策略
+## Developing Custom Strategies
 
-继承 `StrategyBase` 类创建自己的策略：
+Inherit from `StrategyBase` class to create your own strategy:
 
 ```cpp
 #include "strategies/strategy_base.h"
@@ -448,55 +448,55 @@ public:
     MyStrategy() : StrategyBase("MyStrategy") {}
     
     void onScanResult(const ScanResult& result) override {
-        // 处理扫描结果
-        if (/* 你的条件 */) {
-            // 订阅数据
+        // Handle scan result
+        if (/* your conditions */) {
+            // Subscribe to data
             subscribeStock(result.symbol);
             
-            // 下单
+            // Place order
             buy(result.symbol, quantity, price);
         }
     }
     
     void onKLine(const std::string& symbol, const KLine& kline) override {
-        // 处理K线数据
-        // 实现你的交易逻辑
+        // Handle K-line data
+        // Implement your trading logic
     }
 };
 ```
 
-在 `main.cpp` 中添加你的策略：
+Add your strategy in `main.cpp`:
 
 ```cpp
 auto my_strategy = std::make_shared<MyStrategy>();
 strategy_mgr.addStrategy(my_strategy);
 ```
 
-## 风险控制
+## Risk Control
 
-系统内置多层风险控制：
+The system includes multiple layers of risk control:
 
-1. **仓位控制**
-   - 单只股票最多占总资金20%
-   - 最多同时持有10只股票
-   - 总资金不超过配置的最大值
+1. **Position limits**
+  - Single stock max allocation: 20% of total capital
+  - Maximum concurrent positions: 10
+  - Total allocated capital should not exceed configured maximum
 
-2. **止损止盈**
-   - 自动止损：亏损5%
-   - 自动止盈：盈利15%
+2. **Stop-loss / Take-profit**
+  - Automatic stop-loss: 5% loss
+  - Automatic take-profit: 15% profit
 
-3. **每日风控**
-   - 每日最大亏损限制3%
-   - 触发后停止当日交易
+3. **Daily risk control**
+  - Daily maximum loss limit: 3%
+  - Trading halted for the day when triggered
 
-4. **订单风控**
-   - 每笔订单前检查资金充足性
-   - 检查持仓数量限制
-   - 检查单股占比限制
+4. **Order-level risk checks**
+  - Verify sufficient funds before placing each order
+  - Enforce position count limits
+  - Enforce per-stock allocation limits
 
-## 日志系统
+## Logging System
 
-系统会自动记录所有操作到 `trading_system.log`：
+The system automatically logs all operations to `trading_system.log`:
 
 ```
 2025-01-15 10:00:00.123 [INFO] System started
@@ -505,29 +505,29 @@ strategy_mgr.addStrategy(my_strategy);
 2025-01-15 10:10:00.234 [WARNING] Stop loss triggered for HK.00700
 ```
 
-## 注意事项
+## Important Notes
 
-⚠️ **重要提示**：
+⚠️ **Important Notice**:
 
-1. **先用模拟盘**：充分测试后再使用实盘
-2. **交易所配置**：根据使用的交易所正确配置连接参数和凭证
-3. **API集成**：确保已正确集成所选交易所的API库
-4. **资金安全**：合理设置风险参数，不要超出承受范围
-5. **监控系统**：运行时持续监控系统状态和日志
-6. **权限设置**：确保API凭证具有所需的交易权限
+1. **Start with paper trading**: thoroughly test before using live trading
+2. **Exchange configuration**: configure connection parameters and credentials per exchange
+3. **API integration**: ensure the exchange API libraries are integrated correctly
+4. **Capital safety**: set risk parameters reasonably and within your tolerance
+5. **Monitoring**: monitor system status and logs during operation
+6. **Permissions**: ensure API credentials have required trading permissions
 
-## TODO集成清单
+## TODO Integration Checklist
 
-系统框架已完成，以下位置需要集成真实的Futu API调用：
+Framework is implemented; the following locations need integration with real Futu API calls:
 
-1. `src/scanner/market_scanner.cpp` - 市场扫描API调用
-2. `src/data/data_subscriber.cpp` - 数据订阅API调用
-3. `src/trading/order_executor.cpp` - 下单API调用
-4. `src/main.cpp` - API连接和初始化
+1. `src/scanner/market_scanner.cpp` - Market scanner API calls
+2. `src/data/data_subscriber.cpp` - Data subscription API calls
+3. `src/trading/order_executor.cpp` - Order placement API calls
+4. `src/main.cpp` - API connection and initialization
 
-## 性能监控
+## Performance Monitoring
 
-系统每分钟输出状态报告：
+The system outputs a status report every minute:
 
 ```
 ========== System Status ==========
@@ -545,14 +545,14 @@ HK.01810: 100 @ $120.0 (Current: $125.0, P/L: $500 4.17%)
 ===================================
 ```
 
-## 许可证
+## License
 
-本项目仅供学习和研究使用。
+This project is intended for learning and research purposes only.
 
-## 联系方式
+## Contact
 
-如有问题或建议，请创建Issue。
+For issues or suggestions, please open an Issue.
 
 ---
 
-**风险提示**：股市有风险，投资需谨慎。本系统仅供参考，使用者需自行承担交易风险。
+**Risk Notice**: The stock market involves risks; invest cautiously. This system is for reference only; users assume responsibility for trading outcomes.

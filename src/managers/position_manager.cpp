@@ -12,7 +12,7 @@ void PositionManager::updatePosition(const std::string& symbol, int quantity, do
     
     auto it = positions_.find(symbol);
     if (it == positions_.end()) {
-        // 新建持仓
+        // New position
         Position pos;
         pos.symbol = symbol;
         pos.quantity = quantity;
@@ -30,15 +30,15 @@ void PositionManager::updatePosition(const std::string& symbol, int quantity, do
            << " price=" << price;
         LOG_INFO(ss.str());
     } else {
-        // 更新持仓
+        // Update position
         Position& pos = it->second;
         
-        // 计算新的平均成本
+        // Calculate new average cost
         double total_cost = pos.avg_price * pos.quantity + price * quantity;
         pos.quantity += quantity;
         
         if (pos.quantity == 0) {
-            // 平仓
+            // Close position
             std::stringstream ss;
             ss << "Position closed: " << symbol << " P/L=" << pos.profit_loss;
             LOG_INFO(ss.str());

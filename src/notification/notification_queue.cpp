@@ -34,19 +34,19 @@ void NotificationQueue::shutdown() {
     
     LOG_INFO("Shutting down NotificationQueue...");
     
-    // 停止接收新消息
+    // Stop accepting new messages
     running_ = false;
     
-    // 唤醒处理线程
+    // Wake up the processing thread
     queue_cv_.notify_one();
     
-    // 等待处理线程完成
+    // Wait for the processing thread to finish
     if (worker_thread_ && worker_thread_->joinable()) {
         worker_thread_->join();
         LOG_INFO("NotificationQueue worker thread stopped");
     }
     
-    // 处理剩余的消息
+    // Process remaining messages
     {
         std::lock_guard<std::mutex> lock(queue_mutex_);
         while (!message_queue_.empty()) {
@@ -84,14 +84,14 @@ bool NotificationQueue::enqueue(const NotificationMessage& message) {
 bool NotificationQueue::sendMessage(const std::string& content, const std::string& type) {
     NotificationMessage msg(content, type);
     
-    // 生成唯一ID
+    // Generate unique ID
     auto now = std::chrono::system_clock::now();
     auto timestamp = std::chrono::system_clock::to_time_t(now);
     std::stringstream ss;
     ss << std::put_time(std::localtime(&timestamp), "%Y%m%d%H%M%S");
     msg.id = ss.str() + "_" + std::to_string(reinterpret_cast<uintptr_t>(this));
     
-    // 设置时间戳（毫秒）
+    // Set timestamp (milliseconds)
     msg.timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
         now.time_since_epoch()
     ).count();
@@ -145,16 +145,16 @@ void NotificationQueue::processingThread() {
     while (running_) {
         std::unique_lock<std::mutex> lock(queue_mutex_);
         
-        // 等待消息或shutdown信号
-        queue_cv_.wait(lock, [this] { 
-            return !message_queue_.empty() || !running_; 
+        // Wait for messages or a shutdown signal
+        queue_cv_.wait(lock, [this] {
+            return !message_queue_.empty() || !running_;
         });
         
         if (!message_queue_.empty()) {
             auto message = message_queue_.front();
             message_queue_.pop();
             
-            // 释放锁，以便在处理消息时其他线程可以添加新消息
+            // Unlock so other threads can enqueue while this thread processes the message
             lock.unlock();
             
             processMessage(message);

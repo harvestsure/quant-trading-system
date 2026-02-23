@@ -19,7 +19,7 @@ void EventEngine::start() {
     
     running_ = true;
     
-    // 启动事件处理线程
+    // Start event processing thread
     event_thread_ = std::make_unique<std::thread>(&EventEngine::eventLoop, this);
     
     LOG_INFO("EventEngine started");
@@ -32,10 +32,10 @@ void EventEngine::stop() {
     
     running_ = false;
     
-    // 通知事件循环线程退出
+    // Notify event loop thread to exit
     queue_cv_.notify_all();
     
-    // 等待线程结束
+    // Wait for thread to finish
     if (event_thread_ && event_thread_->joinable()) {
         event_thread_->join();
     }
@@ -86,7 +86,7 @@ void EventEngine::putEvent(const EventPtr& event) {
         event_queue_.push(event);
     }
     
-    // 通知事件处理线程
+    // Notify event processing thread
     queue_cv_.notify_one();
 }
 
@@ -97,24 +97,24 @@ void EventEngine::eventLoop() {
         {
             std::unique_lock<std::mutex> lock(queue_mutex_);
             
-            // 等待事件或停止信号
+            // Wait for event or stop signal
             queue_cv_.wait(lock, [this] {
                 return !event_queue_.empty() || !running_;
             });
             
-            // 如果停止且队列为空，退出
+            // If stopped and queue is empty, exit
             if (!running_ && event_queue_.empty()) {
                 break;
             }
             
-            // 取出事件
+            // Get event from queue
             if (!event_queue_.empty()) {
                 event = event_queue_.front();
                 event_queue_.pop();
             }
         }
         
-        // 处理事件
+        // Process event
         if (event) {
             processEvent(event);
             processed_count_++;
@@ -130,14 +130,14 @@ void EventEngine::processEvent(const EventPtr& event) {
         
         auto it = handlers_.find(event->getType());
         if (it != handlers_.end()) {
-            // 复制处理器列表，避免在回调中修改处理器映射导致死锁
+            // Copy handler list to avoid deadlock from modifying handler map in callback
             for (const auto& pair : it->second) {
                 handlers_to_call.push_back(pair.second);
             }
         }
     }
     
-    // 调用处理器
+    // Call handlers
     for (const auto& handler : handlers_to_call) {
         try {
             handler(event);

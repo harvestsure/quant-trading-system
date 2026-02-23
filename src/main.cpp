@@ -13,7 +13,7 @@
 #include <chrono>
 #include <atomic>
 
-// 全局标志用于优雅退出
+// Global flag for graceful shutdown
 std::atomic<bool> g_running(true);
 
 void signalHandler(int signal) {
@@ -31,7 +31,7 @@ void printSystemStatus() {
     std::cout << "\n========== System Status ==========\n";
     std::cout << "Active Strategies: " << strategy_mgr.getActiveStrategyCount() << "\n";
     
-    // 显示策略实例
+    // Display strategy instances
     auto strategy_stocks = strategy_mgr.getStrategyStockCodes();
     if (!strategy_stocks.empty()) {
         std::cout << "Strategy Instances: ";
@@ -53,7 +53,7 @@ void printSystemStatus() {
               << " (Win: " << metrics.winning_trades 
               << ", Loss: " << metrics.losing_trades << ")\n";
     
-    // 显示持仓详情
+    // Display position details
     auto positions = pos_mgr.getAllPositions();
     if (!positions.empty()) {
         std::cout << "\n--- Current Positions ---\n";
@@ -75,11 +75,11 @@ int main(int argc, char* argv[]) {
     std::cout << "  Quant Trading System v1.0\n";
     std::cout << "===================================\n\n";
     
-    // 设置信号处理
+    // Set up signal handling
     signal(SIGINT, signalHandler);
     signal(SIGTERM, signalHandler);
     
-    // 加载配置文件（默认使用JSON格式）
+    // Load configuration file (default JSON format)
     std::string config_file = "config.json";
     if (argc > 1) {
         config_file = argv[1];
@@ -93,7 +93,7 @@ int main(int argc, char* argv[]) {
     
     const auto& config = config_mgr.getConfig();
     
-    // 显示交易所配置信息
+    // Display exchange configuration information
     std::cout << "Enabled Exchanges:\n";
     for (const auto& exch : config.exchanges) {
         std::cout << "  - " << exch.name 
@@ -106,7 +106,7 @@ int main(int argc, char* argv[]) {
     
     LOG_INFO("=== Quant Trading System Started ===");
     
-    // 启动事件引擎（必须在其他模块之前启动）
+    // Start event engine (must be started before other modules)
     auto& event_engine = EventEngine::getInstance();
     auto log_event_handler = std::bind(&Logger::handld_logs, &Logger::getInstance(), std::placeholders::_1);
     event_engine.registerHandler(EventType::EVENT_LOG, log_event_handler);
@@ -114,17 +114,17 @@ int main(int argc, char* argv[]) {
     event_engine.start();
     LOG_INFO("Event engine started");
     
-    // 初始化交易所
+    // Initialize exchanges
     auto& exchange_mgr = ExchangeManager::getInstance();
     exchange_mgr.setEventEngine(&event_engine);
     
-    // 初始化所有启用的交易所
+    // Initialize all enabled exchanges
     if (!exchange_mgr.initAllExchanges(config.exchanges)) {
         LOG_ERROR("Failed to initialize exchanges");
         return 1;
     }
     
-    // 连接所有交易所
+    // Connect to all exchanges
     auto exchanges = exchange_mgr.getAllExchanges();
     for (auto& exchange : exchanges) {
         if (!exchange->connect()) {
@@ -134,18 +134,18 @@ int main(int argc, char* argv[]) {
         }
     }
     
-    // 初始化策略管理器（策略实例将由扫描器动态创建）
+    // Initialize strategy manager (strategy instances will be created dynamically by scanner)
     auto& strategy_mgr = StrategyManager::getInstance();
     
-    // 为策略管理器初始化事件处理器
+    // Initialize event handlers for strategy manager
     strategy_mgr.initializeEventHandlers(&event_engine);
     LOG_INFO("Strategy manager initialized - strategies will be created dynamically based on scan results");
     
-    // 创建并启动市场扫描器
-    // 扫描器会自动通知策略管理器创建/删除策略实例
+    // Create and start market scanner
+    // Scanner will automatically notify strategy manager to create/delete strategy instances
     MarketScanner scanner;
     
-    // 添加所有已连接的交易所到扫描器
+    // Add all connected exchanges to scanner
     for (auto& exchange : exchanges) {
         if (exchange->isConnected()) {
             scanner.addExchange(exchange);
@@ -158,42 +158,42 @@ int main(int argc, char* argv[]) {
     LOG_INFO("\nSystem is running. Press Ctrl+C to stop.\n");
     LOG_INFO("Status updates will be printed every minute.\n\n");
     
-    // 主循环
+    // Main loop
     int status_counter = 0;
     while (g_running) {
         std::this_thread::sleep_for(std::chrono::seconds(1));
         
         status_counter++;
         
-        // 每分钟打印一次状态
+        // Print status every minute
         if (status_counter >= 60) {
             printSystemStatus();
             status_counter = 0;
         }
     }
     
-    // 优雅退出
+    // Graceful shutdown
     LOG_INFO("\nShutting down system...\n");
     
-    // 停止扫描器
+    // Stop scanner
     scanner.stop();
     LOG_INFO("Market scanner stopped");
     
-    // 停止所有策略
+    // Stop all strategies
     strategy_mgr.stopAllStrategies();
     LOG_INFO("All strategies stopped");
     
-    // 打印最终状态
+    // Print final status
     printSystemStatus();
     
-    // 断开所有交易所连接
+    // Disconnect all exchanges
     exchanges = exchange_mgr.getAllExchanges();
     for (auto& exchange : exchanges) {
         exchange->disconnect();
         LOG_INFO("Disconnected from exchange: " + exchange->getName());
     }
     
-    // 停止事件引擎（最后停止）
+    // Stop event engine (stop last)
     event_engine.stop();
     LOG_INFO("Event engine stopped");
     

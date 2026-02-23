@@ -8,7 +8,7 @@
 #include "common/defines.h"
 #include "common/object.h"
 
-// 前向声明
+// Forward declaration
 class IEventEngine;
 
 #define ExchangeClass "GetExchangeClass"
@@ -19,18 +19,18 @@ namespace dylib {
 }
  
 
-// 账户信息
+// Account information
 struct AccountInfo {
     std::string account_id;
-    double total_assets;       // 总资产
-    double cash;               // 现金
-    double market_value;       // 市值
-    double available_funds;    // 可用资金
-    double frozen_funds;       // 冻结资金
-    std::string currency;      // 货币
+    double total_assets;       // total assets
+    double cash;               // cash
+    double market_value;       // market value
+    double available_funds;    // available funds
+    double frozen_funds;       // frozen funds
+    std::string currency;      // currency
 };
 
-// 持仓信息（从交易所获取）
+// Position information (retrieved from exchange)
 struct ExchangePosition {
     std::string symbol;
     std::string stock_name;
@@ -43,24 +43,24 @@ struct ExchangePosition {
     double profit_loss_ratio;
 };
 
-// 交易所接口基类
+// Exchange interface base class
 class IExchange {
 public:
     virtual ~IExchange() = default;
     
-    // ========== 连接管理 ==========
+    // ========== Connection management ==========
     virtual bool connect() = 0;
     virtual bool disconnect() = 0;
     virtual bool isConnected() const = 0;
     virtual std::string getName() const = 0;
     virtual std::string getDisplayName() const = 0;
     
-    // ========== 账户相关 ==========
+    // ========== Account related ==========
     virtual AccountInfo getAccountInfo() = 0;
     virtual std::vector<ExchangePosition> getPositions() = 0;
     virtual double getAvailableFunds() = 0;
     
-    // ========== 交易相关 ==========
+    // ========== Trading related ==========
     virtual std::string placeOrder(
         const std::string& symbol,
         const std::string& side,      // "BUY" or "SELL"
@@ -74,7 +74,7 @@ public:
     virtual OrderData getOrderStatus(const std::string& order_id) = 0;
     virtual std::vector<OrderData> getOrderHistory(int days = 1) = 0;
     
-    // ========== 行情数据相关 ==========
+    // ========== Market data related ==========
     virtual bool subscribeKLine(const std::string& symbol, const std::string& kline_type) = 0;
     virtual bool unsubscribeKLine(const std::string& symbol) = 0;
     virtual bool subscribeTick(const std::string& symbol) = 0;
@@ -88,20 +88,20 @@ public:
     
     virtual Snapshot getSnapshot(const std::string& symbol) = 0;
     
-    // ========== 市场扫描相关 ==========
+    // ========== Market scanning related ==========
     virtual std::vector<std::string> getMarketStockList() = 0;
     virtual std::map<std::string, Snapshot> getBatchSnapshots(const std::vector<std::string>& stock_codes) = 0;
     
-    // ========== 事件驱动接口 ==========
-    // 交易所实现类应该将原始数据转换为统一格式并发布事件
-    // 不再使用回调，改用事件引擎
-    // 订阅行情后，交易所会自动将数据转换并发布到事件引擎
+    // ========== Event-driven interface ==========
+    // Exchange implementations should convert raw data to unified formats and publish events.
+    // Callbacks are not used; use the event engine instead.
+    // After subscribing to market data, the exchange will convert and publish data to the event engine.
     
-    // ========== 事件引擎 ==========
+    // ========== Event engine ==========
     virtual IEventEngine* getEventEngine() const = 0;
 };
 
-// 交易所工厂
+// Exchange factory
 class ExchangeFactory {
 public:
     static ExchangeFactory& getInstance();

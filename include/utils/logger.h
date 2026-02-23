@@ -18,8 +18,8 @@ public:
     void setLogLevel(LogLevel level) { min_level_ = level; }
 
     void handld_logs(const EventPtr&);
-    
-    // 禁止拷贝
+
+    // Non-copyable
     Logger(const Logger&) = delete;
     Logger& operator=(const Logger&) = delete;
     
@@ -34,7 +34,7 @@ private:
     std::string getCurrentTime();
 };
 
-// 便捷宏
+// Convenience macros
 #define LOG_DEBUG(msg) Logger::getInstance().log(LogLevel::Debug, msg)
 #define LOG_INFO(msg) Logger::getInstance().log(LogLevel::Info, msg)
 #define LOG_WARN(msg) Logger::getInstance().log(LogLevel::Warn, msg)

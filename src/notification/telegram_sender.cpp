@@ -92,7 +92,7 @@ std::string TelegramSender::formatMessage(const NotificationMessage& message) co
     std::stringstream ss;
     ss << "[" << message.type << "] ";
     
-    // 添加时间戳
+    // Add timestamp
     auto time_t_val = std::chrono::milliseconds(message.timestamp);
     auto duration = time_t_val.count();
     auto sctp = std::chrono::system_clock::time_point(
@@ -116,10 +116,10 @@ bool TelegramSender::sendHttpRequest(const std::string& message_text) {
         cli.set_connection_timeout(timeout_seconds_, 0);
         cli.set_read_timeout(timeout_seconds_, 0);
         
-        // 构建请求URL
+        // Construct request URL
         std::string endpoint = "/bot" + bot_token_ + "/sendMessage";
-        
-        // 构建POST参数
+
+        // Construct POST parameters
         httplib::Params params;
         params.emplace("chat_id", chat_id_);
         params.emplace("text", message_text);

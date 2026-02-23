@@ -13,11 +13,11 @@ bool NotificationManager::initialize(const TradingConfig& config) {
         return true;
     }
     
-    // 初始化队列
+    // Initialize the notification queue
     auto& queue = NotificationQueue::getInstance();
     queue.initialize(config.notification.telegram.max_queue_size);
     
-    // 注册Telegram发送器
+    // Register Telegram sender
     if (config.notification.telegram.enabled) {
         auto telegram_sender = TelegramSender::createFromConfig(
             nlohmann::json::object({
@@ -31,7 +31,7 @@ bool NotificationManager::initialize(const TradingConfig& config) {
             queue.registerSender(telegram_sender);
             LOG_INFO("Telegram sender registered successfully");
             
-            // 测试连接
+            // Test connection
             if (telegram_sender->testConnection()) {
                 LOG_INFO("Telegram bot connection test passed");
             } else {

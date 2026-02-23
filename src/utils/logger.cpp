@@ -22,15 +22,15 @@ Logger& Logger::getInstance() {
 }
 
 Logger::Logger() {
-    // 创建 logs 目录（如果不存在）
-    // 跨平台支持：Windows (_mkdir) 和 Unix/macOS (mkdir)
+    // Create logs directory (if it doesn't exist)
+    // Cross-platform support: Windows (_mkdir) and Unix/macOS (mkdir)
     try {
         CREATE_DIR("logs");
     } catch (const std::exception& e) {
         std::cerr << "Failed to create logs directory: " << e.what() << std::endl;
     }
     
-    // 打开日志文件，文件名带时间戳以便区分每次运行
+    // Open log file with timestamp to distinguish each run
     auto now = std::chrono::system_clock::now();
     std::time_t now_c = std::chrono::system_clock::to_time_t(now);
     std::tm tm;
@@ -63,10 +63,10 @@ void Logger::log(LogLevel level, const std::string& message) {
     
     std::string log_entry = getCurrentTime() + " [" + levelToString(level) + "] " + message;
     
-    // 输出到控制台
+    // Output to console
     PrintToConsole(log_entry);
-    
-    // 输出到文件
+
+    // Output to file
     if (log_file_.is_open()) {
         log_file_ << log_entry << std::endl;
         log_file_.flush();
