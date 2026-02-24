@@ -4,6 +4,13 @@ project(QuantTradingSystem)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+if(WIN32)
+    add_compile_definitions(
+        _WIN32_WINNT=0x0A00
+        WINVER=0x0A00
+    )
+endif()
+
 # ========== 交易所编译开关 ==========
 # 用户可以通过 cmake -DENABLE_FUTU=ON 来控制是否启用某个交易所
 option(ENABLE_FUTU "Enable Futu Exchange Support" ON)

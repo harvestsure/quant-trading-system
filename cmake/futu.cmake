@@ -25,6 +25,11 @@ if(ENABLE_FUTU)
     set(FTAPI_SRC_DIR "${FTAPI_HOME}/Src")
     set(PROTO_SRC_DIR "${FTAPI_SRC_DIR}/protobuf-3.5.1")
 
+    # CMake 4+ removed compatibility with projects that set cmake_minimum_required < 3.5.
+    # FTAPI bundles protobuf-3.5.1, whose cmake project uses an old minimum version.
+    # Set a policy compatibility floor before add_subdirectory so bundled protobuf can configure.
+    set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
+
     # --- 汇总变量供主工程使用 ---
     set(FUTU_SOURCES 
         src/exchange/futu_exchange.cpp
