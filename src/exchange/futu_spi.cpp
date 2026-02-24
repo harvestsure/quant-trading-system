@@ -5,6 +5,7 @@
 #include "event/event.h"
 #include "exchange/futu_exchange.h"
 #include <chrono>
+#include <ctime>
 
 FutuSpi::FutuSpi(FutuExchange* exchange) : exchange_(exchange) {
 }
@@ -528,7 +529,11 @@ Futu::u32_t FutuSpi::SendGetHistoryKLine(const Qot_Common::Security& security, i
         auto format_time = [](std::chrono::system_clock::time_point tp) -> std::string {
             auto time_t_val = std::chrono::system_clock::to_time_t(tp);
             struct tm tm_val;
+#ifdef _WIN32
+            localtime_s(&tm_val, &time_t_val);
+#else
             localtime_r(&time_t_val, &tm_val);
+#endif
             char buf[32];
             snprintf(buf, sizeof(buf), "%04d-%02d-%02d %02d:%02d:%02d",
                      tm_val.tm_year + 1900, tm_val.tm_mon + 1, tm_val.tm_mday,
